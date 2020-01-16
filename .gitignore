@@ -1,0 +1,10 @@
+# directories
+/output
+
+# executable files
+sender_receiver/sender
+sender_receiver/receiver
+
+# files
+*.log
+*.trace 
