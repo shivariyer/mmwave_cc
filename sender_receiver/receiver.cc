@@ -5,7 +5,7 @@ using namespace std;
 //#define PORT 4311
 
 static int quit = 0;
-static FILE *fp;
+//static FILE *fp;
 static int sockfd;
 
 /* SIGINT handler: set quit to 1 for graceful termination */
@@ -49,11 +49,11 @@ int main(int argc, char**argv)
   float delay;
   int nrecv, nsend;
   struct sockaddr_in bind_addr;
-  struct sockaddr_storage client_addr;
+  struct sockaddr_in client_addr;
   socklen_t client_addr_len;
   // char serv_ip[256];
   int sockfd_client;
-
+  
   struct timeval cur_time;
   char filename[256];
   bool verbose = false;
@@ -66,7 +66,7 @@ int main(int argc, char**argv)
     printf ("Usage: %s <port> <logfilename> <verbose>\n", argv[0]);
     exit(0);
   }
-
+  
   // sprintf(serv_ip, "%s", argv[1]);
   PORT = atoi(argv[1]);
   sprintf(filename, "./%s", argv[2]);
@@ -77,25 +77,19 @@ int main(int argc, char**argv)
 
   int enable = 1;
   if ( (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof (enable)) != 0) ||
-       (setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, &enable, sizeof(enable)) != 0) ) {
-    fprintf(stderr, "set sockopt failed [%s]\n", strerror(errno));
-    exit(-1);
-  }
-
+       (setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, &enable, sizeof(enable)) != 0) ) 
+    err(-1, "sockopt");
+  
   // bind the socket to the the port number
   memset(&bind_addr, 0, sizeof(bind_addr));
   bind_addr.sin_family = AF_INET;
-  bind_addr.sin_addr.s_addr = INADDR_ANY;
+  bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
   // bind_addr.sin_addr.s_addr = inet_addr(serv_ip);
   bind_addr.sin_port = htons(PORT);
   
-  if (bind(sockfd, (struct sockaddr *)&bind_addr, sizeof(bind_addr)) < 0) {
-    fprintf(stderr, "bind failed [%s]\n", strerror(errno));
-    exit(-1);
-  }
+  if (bind(sockfd, (struct sockaddr *)&bind_addr, sizeof(bind_addr)) < 0)
+    err(-1, "bind");
   
-  fp = fopen(filename, "w");
-
   // set up interrupt handler for graceful termination
   struct sigaction sigact;
   sigact.sa_handler = handle_sigint;
@@ -108,49 +102,75 @@ int main(int argc, char**argv)
     if (verbose)
       cout << "Listening for new connections ..." << endl;
     
+    client_addr_len = sizeof(struct sockaddr_storage);
     if ((sockfd_client = accept(sockfd, (struct sockaddr *) &client_addr, &client_addr_len)) < 0) {
-      fprintf(stderr, "accept failed [%s]\n", strerror(errno));
-      exit(-1);
+      warn("accept");
+      continue;
     }
     
-    char host[NI_MAXHOST], service[NI_MAXSERV];
+    // print client ip and port
+    char client_addr_p[INET_ADDRSTRLEN] = "X.X.X.X";
+    if (inet_ntop(AF_INET, &client_addr.sin_addr, client_addr_p, INET_ADDRSTRLEN) == NULL) 
+      warn("inet_ntop");
+      
+    char host[NI_MAXHOST] = "unknown";
+    char service[NI_MAXSERV] = "unknown";
     int s = getnameinfo((struct sockaddr *) &client_addr, client_addr_len, host, NI_MAXHOST, service, NI_MAXSERV, NI_NUMERICSERV);
-    
-    if (s == 0)
-      if (verbose)
-	printf("Accepted connection from %s:%s\n", host, service);
-    else
-      fprintf(stderr, "getnameinfo: [%s]\n", gai_strerror(s));
-
-    // tcp flow started
-    gettimeofday(&cur_time, NULL);
-    fprintf(fp, "\nSTART FLOW %s:%s TIMESTAMP %ld.%3.6ld\n", host, service, cur_time.tv_sec, cur_time.tv_usec);
-    fprintf(fp, "SEQ,\t received_time,\t sent_time,\t delay_s\n");
-    
-    // receive data from user
-    while ((nrecv = recv(sockfd_client, &pdu_data, PACKET_SIZE, 0)) > 0) {
-      gettimeofday(&cur_time,NULL);
-      delay = (cur_time.tv_sec - pdu_data.seconds) + (cur_time.tv_usec - pdu_data.micros) / 1e6;
-      fprintf(fp, "%3.9u,\t %ld.%3.6ld,\t %ld.%3.6ld,\t %f\n", pdu_data.seq, cur_time.tv_sec, cur_time.tv_usec, pdu_data.seconds, pdu_data.micros, delay);
+      
+    if (s != 0)
+      fprintf(stderr, "getnameinfo: %s\n", gai_strerror(s));
+      
+    if (verbose) {
+      cout << "Accepted connection from " << client_addr_p << ":" << ntohs(client_addr.sin_port) << endl;
+      cout << "Host name: " << host << ", service: " << service << endl;
     }
 
-    // tcp flow ended
-    gettimeofday(&cur_time, NULL);
-    fprintf(fp, "END FLOW %s:%s TIMESTAMP %ld.%3.6ld\n", host, service, cur_time.tv_sec, cur_time.tv_usec);
+    cout << "Forking child process to handle the connection ..." << endl;
+    
+    pid_t pid;
+    if ((pid = fork()) == 0) {
+      
+      // ** NO PRINTING TO CONSOLE INSIDE CHILD PROCESS **
+      
+      close(sockfd);
 
-    fflush(fp);
-
-    if (verbose)
-      cout << "Done receiving data, closing connection." << endl;
-     
+      FILE *fp = fopen(filename, "w");
+      
+      // tcp flow started
+      gettimeofday(&cur_time, NULL);
+      fprintf(fp, "\nSTART FLOW from %s:%s at TIMESTAMP %ld.%3.6ld\n", host, service, cur_time.tv_sec, cur_time.tv_usec);
+      fprintf(fp, "SEQ,\t received_time,\t sent_time,\t delay_s\n");
+      
+      // receive data from user
+      while ((nrecv = recv(sockfd_client, &pdu_data, PACKET_SIZE, MSG_WAITALL)) > 0) {
+	gettimeofday(&cur_time,NULL);
+	delay = (cur_time.tv_sec - pdu_data.seconds) + (cur_time.tv_usec - pdu_data.micros) / 1e6;
+	fprintf(fp, "%3.9u,\t %ld.%3.6ld,\t %ld.%3.6ld,\t %f\n", pdu_data.seq, cur_time.tv_sec, cur_time.tv_usec, pdu_data.seconds, pdu_data.micros, delay);
+      }
+      
+      // tcp flow ended
+      gettimeofday(&cur_time, NULL);
+      fprintf(fp, "END FLOW from %s:%s at TIMESTAMP %ld.%3.6ld\n", host, service, cur_time.tv_sec, cur_time.tv_usec);
+      
+      fflush(fp);
+      
+      // if (verbose)
+      // 	cout << "Done receiving data, closing connection." << endl;
+      
+      close(sockfd_client);
+      
+      fclose(fp);
+      
+      exit(0);
+    }
+    
     close(sockfd_client);
+    
   } // end while loop
   
   cout << "Stopping the server ..." << endl;
   close(sockfd);
   
-  fclose(fp);
-
   cout << "Finished the experiment." << endl;
    
   return 0;

@@ -21,6 +21,29 @@
 #define MTU 1500
 #define PAYLOAD_LEN 1483
 
+/****************************
+
+// IPv4 socket address structure for reference (from netinet/in.h)
+// according to POSIX specification
+
+// structure representing a single IPv4 address
+struct in_addr {
+  in_addr_t s_addr;  // 32-bit IPv4 address (uint32_t), network-byte
+                     // ordered (use ntohx() functions to print
+                     // readable output)
+};
+
+// structure representing a IPv4 socket address
+struct sockaddr_in {
+  uint8_t        sin_len;	// length of structure (16 bytes)
+  sa_family_t    sin_family;	// AF_INET
+  in_port_t      sin_port;	// 16-bit TCP or UDP port number (network-byte ordered)
+  struct in_addr sin_addr; 	// 32-bit IPv4 address (network-byte ordered)
+  char           sin_zero[8]; 	// unused (for aligning structure to 16 bytes)
+};
+
+*****************************/
+
 typedef struct __attribute__((packed, aligned(2))) {
   unsigned int seq;		// seq number of packet
   time_t seconds;		// timestamp (seconds)

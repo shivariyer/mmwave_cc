@@ -18,42 +18,44 @@ send_const(char *serv_ip, int serv_port, char *cc_protocol, int num_packets, boo
   int sockfd;
   
   // opening a tcp socket
-  if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-    warn("socket");
-    return -1;
-  }
+  if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+    err(-1, "socket");
 
   int enabled = 1;
-  if ((setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enabled, sizeof(enabled)) != 0)) {
-    warn("sockopt SO_REUSEADDR");
-    return -1;
-  }
+  if ((setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enabled, sizeof(enabled)) != 0))
+    err(-1, "sockopt SO_REUSEADDR");
   
-  if ((setsockopt(sockfd, IPPROTO_TCP, TCP_CONGESTION, cc_protocol, strlen(cc_protocol)) != 0)) {
-    warn("sockopt TCP_CONGESTION");
-    return -1;
-  }
+  if ((setsockopt(sockfd, IPPROTO_TCP, TCP_CONGESTION, cc_protocol, strlen(cc_protocol)) != 0))
+    err(-1, "sockopt TCP_CONGESTION");
   
-  // binding the tcp socket to the port of the server
+  // connect to the server
   memset(&serv_addr, 0, sizeof(serv_addr));
   serv_addr.sin_family = AF_INET;
   serv_addr.sin_port = htons(serv_port);
-  serv_addr.sin_addr.s_addr = inet_addr(serv_ip);
-
-  // connect to the server
-  if (connect(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
-    warn("connect");
-    return -1;
-  }
-
+  //serv_addr.sin_addr.s_addr = inet_addr(serv_ip);
+  if (inet_pton(AF_INET, serv_ip, &serv_addr.sin_addr) <= 0)
+    err(-1, "inet_pton");
+  
+  if (connect(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
+    err(-1, "connect");
+  
   // report successful connection to server
-  char host[NI_MAXHOST], service[NI_MAXSERV];
+  
+  // print server address and port
+  char serv_addr_p[INET_ADDRSTRLEN] = "X.X.X.X";
+  if (inet_ntop(AF_INET, &serv_addr.sin_addr, serv_addr_p, INET_ADDRSTRLEN) == NULL) 
+    warn("inet_ntop");
+  
+  // print host name and service (DNS lookup)
+  char host[NI_MAXHOST] = "unknown";
+  char service[NI_MAXSERV] = "unknown";
   int s = getnameinfo((struct sockaddr *) &serv_addr, sizeof(serv_addr), host, NI_MAXHOST, service, NI_MAXSERV, NI_NUMERICSERV);
-
-  if (s != 0) {
-    fprintf(stderr, "getnameinfo: [%s]\n", gai_strerror(s));
-    return -1;
-  }
+  
+  if (s != 0)
+    fprintf(stderr, "getnameinfo: %s\n", gai_strerror(s));
+  
+  cout << "Connected to " << serv_addr_p << ":" << serv_port << endl;
+  cout << "Host name: " << host << ", service: " << service << endl;
   
   // start logging for the flow
   gettimeofday(&timestamp, NULL);
