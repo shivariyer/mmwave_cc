@@ -14,12 +14,16 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/time.h>
+#include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <iostream>
 
-#define MTU 1500
-#define PAYLOAD_LEN 1483
+#define MTU          1500
+
+#define PAYLOAD_LEN  1483
+
+#define LISTENQ      1024
 
 /****************************
 
@@ -51,6 +55,8 @@ typedef struct __attribute__((packed, aligned(2))) {
   bool probe;			// whether this a probe packet or bg traffic packet
   char buf[PAYLOAD_LEN];	// payload
 } packet_t;
+
+#define PACKET_SIZE sizeof(packet_t)
 
 typedef struct __attribute__((packed, aligned(2))) {
   unsigned int seq;		// seq number of packet
