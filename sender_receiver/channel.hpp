@@ -3,6 +3,7 @@
 #define _CHANNEL_H 
 
 #include <err.h>
+#include <time.h>
 #include <errno.h>
 #include <netdb.h>
 #include <signal.h>

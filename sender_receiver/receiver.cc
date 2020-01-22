@@ -83,7 +83,7 @@ int main(int argc, char**argv)
   sprintf(proc_prefix, "Server (%d)> ", getpid());
   
   if (argc != 4) {
-    cout << "Usage: " << argv[0] << " <port> <logfilename> <verbose>" << endl;
+    cout << "Usage: " << argv[0] << " <port> <logfilenameprefix> <verbose>" << endl;
     exit(0);
   }
   
@@ -175,6 +175,17 @@ int main(int argc, char**argv)
       
       sprintf(proc_prefix, "Child (%d)> ", getpid());
       
+      time_t cur_time_secs = time(NULL);
+      struct tm *cur_time_fmt = localtime(&cur_time_secs);
+      sprintf(filename,
+	      "%s_%05d_%4d%02d%02d%02d%02d.log",
+	      filename,
+	      getpid(),
+	      1900 + cur_time_fmt->tm_year,
+	      cur_time_fmt->tm_mon+1,
+	      cur_time_fmt->tm_mday,
+	      cur_time_fmt->tm_hour,
+	      cur_time_fmt->tm_min);
       FILE *fp = fopen(filename, "w");
       
       // tcp flow started
