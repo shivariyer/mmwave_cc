@@ -120,6 +120,11 @@ int main(int argc, char**argv)
   
   // to handle child termination
   sigact_chld.sa_handler = handle_sigchld;
+
+  // set the mask and restart flag according to p.130 in UNIX Network
+  // Programming by W. Richard Stevens, et. al, 3rd edition
+  sigemptyset(&sigact_chld.sa_mask);
+  sigact_chld.sa_flags = SA_RESTART;
   sigaction(SIGCHLD, &sigact_chld, NULL);
   
   while ( !quit ) {
