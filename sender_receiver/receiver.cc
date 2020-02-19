@@ -12,7 +12,7 @@ static int quit = 0;
 void
 handle_sigint(int signum) {
   quit = 1;
-  // cout << "Received signal " << signum << ", stopping the server." << endl;
+  cout << "PID: " << getpid() << ", received signal " << signum << endl;
   // close(sockfd);
   // exit(1);
   return;
@@ -116,6 +116,7 @@ int main(int argc, char**argv)
   
   // to handle keyboard interruption
   sigact_int.sa_handler = handle_sigint;
+  //sigact_int.sa_flags = SA_RESETHAND;
   sigaction(SIGINT, &sigact_int, NULL);
   
   // to handle child termination
@@ -201,12 +202,13 @@ int main(int argc, char**argv)
       // receive data from user (MSG_WAITALL ensures that all the data
       // is read even if the process is INTerrupted)
       while ((nrecv = recv(sockfd_client, &pdu_data, PACKET_SIZE, MSG_WAITALL)) > 0) {
+	//cout << proc_prefix << "Received a packet" << endl;
 	gettimeofday(&cur_time,NULL);
 	delay = (cur_time.tv_sec - pdu_data.seconds) + (cur_time.tv_usec - pdu_data.micros) / 1e6;
 	fprintf(fp, "%3.9u,\t %ld.%3.6ld,\t %ld.%3.6ld,\t %f\n", pdu_data.seq, cur_time.tv_sec, cur_time.tv_usec, pdu_data.seconds, pdu_data.micros, delay);
       }
       
-      if (nrecv < 0)
+      if (nrecv < 0 || errno == EINTR)
 	cerr << proc_prefix << "recv(): " << strerror(errno) << endl;
       else if (verbose)
 	cout << proc_prefix << "Flow has ended." << endl;
@@ -232,6 +234,13 @@ int main(int argc, char**argv)
     close(sockfd_client);
     
   } // end while loop
+
+  // wait for children to finish
+  cout << proc_prefix << "Waiting for any children to terminate ..." << endl;
+  pid_t pid;
+  int stat;
+  while ( (pid = waitpid(-1, &stat, 0)) > 0 )
+    cout << proc_prefix << "Server child " << pid << " has terminated." << endl;
   
   if (verbose) 
     cout << proc_prefix << "Stopping the server ..." << endl;

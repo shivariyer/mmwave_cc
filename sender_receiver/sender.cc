@@ -81,7 +81,7 @@ send_const(char *serv_ip, int serv_port, char *cc_protocol, int num_packets, boo
     pdu->micros = timestamp.tv_usec;
     pdu->probe = probe;
     
-    if ((nsend = send(sockfd, pdu, packet_size, 0)) != packet_size) {
+    if ((nsend = send(sockfd, pdu, packet_size, MSG_MORE)) != packet_size) {
       // report problem
       warn("send");
       fail = true;
