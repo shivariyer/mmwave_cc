@@ -64,7 +64,23 @@ timeval_subtract (struct timeval *result, struct timeval *x, struct timeval *y)
 
 int main(int argc, char**argv)
 {
+  // *** constants ***
+  const int N_CLIENTS_MAX_LIMIT = 100;
+  
+  // *** list of mandatory arguments to the program ***
+  
+  // port at which the receiver should listen
   int PORT;
+  
+  // we will accept only these many connections at max, and then the server will exit
+  int n_clients_max;
+  
+  // file name for logging
+  char filename[256];
+  
+  // should we log progress on the console?
+  bool verbose = false;
+
   float delay;
   int nrecv, nsend;
   struct sockaddr_in bind_addr;
@@ -74,22 +90,25 @@ int main(int argc, char**argv)
   int sockfd_client;
   
   struct timeval cur_time;
-  char filename[256];
-  bool verbose = false;
   
   packet_t pdu_data;
   
   char proc_prefix[20];
   sprintf(proc_prefix, "Server (%d)> ", getpid());
   
-  if (argc != 4) {
-    cout << "Usage: " << argv[0] << " <port> <logfilenameprefix> <verbose>" << endl;
+  if (argc != 5) {
+    cout << "Usage: " << argv[0] << " <port> <maxclients> <logfilenameprefix> <verbose>" << endl;
     exit(0);
   }
   
   PORT = atoi(argv[1]);
-  sprintf(filename, "./%s", argv[2]);
-  verbose = bool(atoi(argv[3]));
+  n_clients_max = atoi(argv[2]);
+  if (n_clients_max < 1 || n_clients_max > N_CLIENTS_MAX_LIMIT) {
+    cerr << proc_prefix << "n_clients_max should be between 1 and " << N_CLIENTS_MAX_LIMIT;
+    return -2;
+  }
+  sprintf(filename, "./%s", argv[3]);
+  verbose = bool(atoi(argv[4]));
   
   // creating the remote struct for sending the packet initialization from the user side
   sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -128,11 +147,12 @@ int main(int argc, char**argv)
   sigact_chld.sa_flags = SA_RESTART;
   sigaction(SIGCHLD, &sigact_chld, NULL);
   
-  while ( !quit ) {
+  int n_clients = 0;
+  while ( !quit && (n_clients < n_clients_max) ) {
     
     // listen for connections
     if (verbose)
-      cout << proc_prefix << "Listening for new connections ..." << endl;
+      cout << proc_prefix << "Listening for remaining " << n_clients_max - n_clients << "/" << n_clients_max << " connections ..." << endl;
     
     client_addr_len = sizeof(struct sockaddr_storage);
     
@@ -166,6 +186,9 @@ int main(int argc, char**argv)
       
     if (s != 0)
       cerr << proc_prefix << "getnameinfo(): " << gai_strerror(s);
+    
+    // accepted connection successfully, ready to start sending data
+    n_clients += 1;
     
     if (verbose) {
       cout << proc_prefix << "Accepted connection from " << client_addr_p << ":" << ntohs(client_addr.sin_port) << endl;
