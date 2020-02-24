@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os, sys
 import signal
 import argparse
@@ -26,8 +28,13 @@ def RunSim():
         saveprefix += '_q{}'.format(args.queue)
     
     # (1) starting the server receiver in a separate process inside a mahimahi shell
-    recvlogfpathprefix = os.path.join(args.dir, saveprefix + '_receiver')
-    receiver_cmd = ' sender_receiver/receiver {} 1 {} 1'.format(args.port, recvlogfpathprefix) # removed "&"
+    receiver_cmd = ' -- sender_receiver/receiver {} {} {}'.format(args.port, args.maxflows, args.verbose) # removed "&"
+    if args.recvlog:
+        recvlogdir = os.path.join(args.dir, saveprefix + '_receiver')
+        if not os.path.exists(recvlogdir):
+            os.mkdir(recvlogdir)
+        recvlogfpathprefix = os.path.join(recvlogdir, 'recvlog')
+        receiver_cmd += ' --log {}'.format(recvlogfpathprefix)
     #print('Receiver run using command:', receiver_cmd)
     
     mm_cmd = "mm-link traces/channels/{0} traces/channels/{0} --uplink-log {1}/{2}_uplink.csv --downlink-log {1}/{2}_downlink.csv".format(args.trace, args.dir, saveprefix)
@@ -40,6 +47,7 @@ def RunSim():
     #mm_process = subprocess.Popen(mm_cmd.split(), universal_newlines=True)
     
     # to ensure the mm interface gets up
+    print('Waiting for mm-interface to get up ...')
     sleep(1)
     
     print('Mahimahi process started, pid', mm_process.pid)
@@ -56,6 +64,7 @@ def RunSim():
         sender_cmd += 'const {} {}'.format(args.const[0], args.const[1])
     elif args.filepath is not None:
         sender_cmd += 'file ' + args.filepath
+        sender_cmd += ' --maxflows {}'.format(args.maxflows)
     
     #print(sender_cmd)
     #stdout, _ = mm_process.communicate(sender_cmd)
@@ -75,7 +84,7 @@ def RunSim():
     print('Waiting for sender process ...')
     print('Sender process returned', sender_process.wait())
     
-    print('Waiting receiver process ...')
+    print('Waiting for receiver process ...')
     #mm_process.send_signal(signal.SIGINT)
     print('Mahimahi process returned', mm_process.wait())
     
@@ -90,6 +99,12 @@ def RunSim():
     
     return
 
+
+def unsigned_int(arg):
+    arg = int(arg)
+    if arg < 0:
+        raise argparse.ArgumentError('Argument must be a nonnegative integer')
+    return arg
 
 def positive_int(arg):
     arg = int(arg)
@@ -128,7 +143,7 @@ if __name__ == '__main__':
 			default='13')
     
     parser.add_argument('--queue', type=positive_int, help='Queue size in mahimahi (bytes)')
-    
+
     megroup = parser.add_mutually_exclusive_group()
 
     megroup.add_argument('--const', nargs=2,
@@ -137,6 +152,18 @@ if __name__ == '__main__':
     megroup.add_argument('--file', '-f',
                          dest='filepath',
                          help="File from which to generate user sender trace")
+
+    parser.add_argument('--maxflows', type=unsigned_int,
+                        help='Limit on number of flows in the simulation (0 for unlimited)',
+                        default=1)
+    
+    parser.add_argument('--verbose', '-v', action='store_true',
+                        help='Log progress on console',
+                        default=False)
+
+    parser.add_argument('--recvlog', action='store_true',
+                        help='Log packets at the receiver',
+                        default=False)
     
     args = parser.parse_args()
     

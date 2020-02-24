@@ -109,7 +109,7 @@ send_const(char *serv_ip, int serv_port, char *cc_protocol, int num_packets, boo
 
 /* send_fromtrace: Send packets by reading from a file. */
 int
-send_fromtrace(char *serv_ip, int serv_port, char *tracefilepath) {
+send_fromtrace(char *serv_ip, int serv_port, char *tracefilepath, int max_flows) {
   
   // establish connection first
   struct sockaddr_in serv_addr;
@@ -124,11 +124,15 @@ send_fromtrace(char *serv_ip, int serv_port, char *tracefilepath) {
   bool probe_prev = false;
   char cc_protocol[10];
   int count = 0;
-
+  int flow_count = 0;
+  
   bool ret = false;
   bool fail = false;
   
   while (fgets(line, 10, fp) != NULL) {
+    
+    if ((max_flows != 0) && (flow_count == max_flows))
+      break;
 
     // strip the line of asterisk if present (denotes "probe" packet)
     char *pos = NULL;
@@ -161,6 +165,9 @@ send_fromtrace(char *serv_ip, int serv_port, char *tracefilepath) {
 	strcpy(cc_protocol, "cubic"); // the default cc protocol
       else
 	strcpy(cc_protocol, "ccp");
+      //strcpy(cc_protocol, "cubic");
+      
+      flow_count += 1;
 	      
       fail = send_const(serv_ip, serv_port, cc_protocol, count, probe_prev);
       ret = (ret | fail);
@@ -197,6 +204,7 @@ int main(int argc, char** argv)
   int serv_port;
   int ttr;
   char logfilename[256];
+  int max_flows = 0;
   
   short genmethod = 0; // Shiva: method of generation of packets ("const" by default)
 
@@ -209,11 +217,11 @@ int main(int argc, char** argv)
   
   // we have been using only the "--type file" option so far
   char usage_str[200];
-  sprintf(usage_str, "Usage: %s <server IP> <port> <duration in secs> <logfilename> --type [const <num_packets> <probe_mode>,file <filepath>]\n", argv[0]);
+  sprintf(usage_str, "Usage: %s <server IP> <port> <duration in secs> <logfilename> --type {const <num_packets> <probe_mode> | file <filepath>} [--maxflows <max_flows>]\n", argv[0]);
   
   // Shiva: additional options for determining the manner of
   // generation of packets
-  if ((argc != 8) && (argc != 9)) {
+  if ((argc != 8) && (argc != 9) && (argc != 10) && (argc != 11)) {
     puts(usage_str);
     exit(0);
   }
@@ -223,7 +231,7 @@ int main(int argc, char** argv)
   serv_port = atoi(argv[2]);
   ttr = atoi(argv[3]); // this is time in seconds to run
   sprintf(logfilename, "./%s", argv[4]);
-
+  
   if (strcmp(argv[5], "--type") == 0) {
     if (strcmp(argv[6], "const") == 0) {
       num_packets = atoi(argv[7]);
@@ -241,23 +249,35 @@ int main(int argc, char** argv)
     exit(0);
   }
 
+  if ((argc == 10) || (argc == 11)) {
+    if (strcmp(argv[argc-2], "--maxflows") != 0) {
+      puts(usage_str);
+      exit(0);
+    }
+    if ((max_flows = atoi(argv[argc-1])) < 0)
+      max_flows = 0;
+  }
+
+  cout << "Max flows: " << max_flows << endl;
+  
   // open log file
   logfp = fopen(logfilename, "w");
   
   // choose input sending method based on options
   if (genmethod == 0) {
-
+    
     char tcp_cc[10];
     if (probe)
       strcpy(tcp_cc, "cubic");
     else
       strcpy(tcp_cc, "ccp");
+    //strcpy(tcp_cc, "cubic");
     
     if (send_const(serv_ip, serv_port, tcp_cc, num_packets, probe) != 0) 
       fprintf(stderr, "ABNORMAL TERMINATION: Something went wrong in send_const\n");
   }
   else if (genmethod == 3) {
-    if (send_fromtrace(serv_ip, serv_port, tracefilepath) != 0)
+    if (send_fromtrace(serv_ip, serv_port, tracefilepath, max_flows) != 0)
       fprintf(stderr, "ABNORMAL TERMINATION: Something went wrong in send_fromtrace\n");
   }
   

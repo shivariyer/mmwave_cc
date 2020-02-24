@@ -65,7 +65,7 @@ timeval_subtract (struct timeval *result, struct timeval *x, struct timeval *y)
 int main(int argc, char**argv)
 {
   // *** constants ***
-  const int N_CLIENTS_MAX_LIMIT = 100;
+  const int N_CLIENTS_MAX_LIMIT = 10000;
   
   // *** list of mandatory arguments to the program ***
   
@@ -76,11 +76,14 @@ int main(int argc, char**argv)
   int n_clients_max;
   
   // file name for logging
-  char filename[256];
+  char filename[64];
   
   // should we log progress on the console?
   bool verbose = false;
-
+  
+  // should we log packets on the receiver side?
+  bool log = false;
+  
   float delay;
   int nrecv, nsend;
   struct sockaddr_in bind_addr;
@@ -96,19 +99,33 @@ int main(int argc, char**argv)
   char proc_prefix[20];
   sprintf(proc_prefix, "Server (%d)> ", getpid());
   
-  if (argc != 5) {
-    cout << "Usage: " << argv[0] << " <port> <maxclients> <logfilenameprefix> <verbose>" << endl;
-    exit(0);
+  char usage_str[200];
+  sprintf(usage_str, "Usage: %s <port> <maxclients> <verbose> [--log <logfilenameprefix>]", argv[0]);
+  
+  if ((argc != 4) && (argc != 6)) {
+    cout << usage_str << endl;
+    return 1;
   }
   
+  // parse all commandline arguments
   PORT = atoi(argv[1]);
   n_clients_max = atoi(argv[2]);
-  if (n_clients_max < 1 || n_clients_max > N_CLIENTS_MAX_LIMIT) {
-    cerr << proc_prefix << "n_clients_max should be between 1 and " << N_CLIENTS_MAX_LIMIT;
+  if (n_clients_max < 0 || n_clients_max > N_CLIENTS_MAX_LIMIT) {
+    cerr << proc_prefix << "n_clients_max should be between 0 and " << N_CLIENTS_MAX_LIMIT << "!" << endl;
     return -2;
   }
-  sprintf(filename, "./%s", argv[3]);
-  verbose = bool(atoi(argv[4]));
+  verbose = bool(atoi(argv[3]));
+  
+  if (argc == 6) {
+    if (strcmp(argv[4], "--log") == 0) {
+      log = true;
+      sprintf(filename, "./%s", argv[5]);
+    }
+    else {
+      cout << usage_str << endl;
+      return 1;
+    }
+  }
   
   // creating the remote struct for sending the packet initialization from the user side
   sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -148,11 +165,15 @@ int main(int argc, char**argv)
   sigaction(SIGCHLD, &sigact_chld, NULL);
   
   int n_clients = 0;
-  while ( !quit && (n_clients < n_clients_max) ) {
+  while ( !quit && ((n_clients < n_clients_max) || (n_clients_max == 0)) ) {
     
     // listen for connections
-    if (verbose)
-      cout << proc_prefix << "Listening for remaining " << n_clients_max - n_clients << "/" << n_clients_max << " connections ..." << endl;
+    if (verbose) {
+      if (n_clients_max == 0)
+	cout << proc_prefix << "Listening for connections ..." << endl;
+      else
+	cout << proc_prefix << "Listening for remaining " << n_clients_max - n_clients << "/" << n_clients_max << " connections ..." << endl;
+    }
     
     client_addr_len = sizeof(struct sockaddr_storage);
     
@@ -183,7 +204,7 @@ int main(int argc, char**argv)
     char host[NI_MAXHOST] = "unknown";
     char service[NI_MAXSERV] = "unknown";
     int s = getnameinfo((struct sockaddr *) &client_addr, client_addr_len, host, NI_MAXHOST, service, NI_MAXSERV, NI_NUMERICSERV);
-      
+    
     if (s != 0)
       cerr << proc_prefix << "getnameinfo(): " << gai_strerror(s);
     
@@ -204,31 +225,43 @@ int main(int argc, char**argv)
       
       sprintf(proc_prefix, "Child (%d)> ", getpid());
       
-      time_t cur_time_secs = time(NULL);
-      struct tm *cur_time_fmt = localtime(&cur_time_secs);
-      sprintf(filename,
-	      "%s_%05d_%4d%02d%02d%02d%02d.log",
-	      filename,
-	      getpid(),
-	      1900 + cur_time_fmt->tm_year,
-	      cur_time_fmt->tm_mon+1,
-	      cur_time_fmt->tm_mday,
-	      cur_time_fmt->tm_hour,
-	      cur_time_fmt->tm_min);
-      FILE *fp = fopen(filename, "w");
+      time_t cur_time_secs;
+      struct tm *cur_time_fmt;
+      FILE *fp;
+      if (log) {
+	cur_time_secs = time(NULL);
+	cur_time_fmt = localtime(&cur_time_secs);
+	sprintf(filename,
+		"%s_%05d_%4d%02d%02d%02d%02d.log",
+		filename,
+		getpid(),
+		1900 + cur_time_fmt->tm_year,
+		cur_time_fmt->tm_mon+1,
+		cur_time_fmt->tm_mday,
+		cur_time_fmt->tm_hour,
+		cur_time_fmt->tm_min);
+	fp = fopen(filename, "w");
+      }
       
       // tcp flow started
-      gettimeofday(&cur_time, NULL);
-      fprintf(fp, "\nSTART FLOW from %s:%s at TIMESTAMP %ld.%3.6ld\n", host, service, cur_time.tv_sec, cur_time.tv_usec);
-      fprintf(fp, "SEQ,\t received_time,\t sent_time,\t delay_s\n");
+      if (log) {
+	gettimeofday(&cur_time, NULL);
+	fprintf(fp, "\nSTART FLOW from %s:%s at TIMESTAMP %ld.%3.6ld\n", host, service, cur_time.tv_sec, cur_time.tv_usec);
+	fprintf(fp, "SEQ,\t received_time,\t sent_time,\t delay_s\n");
+      }
+
+      if (verbose)
+	cout << proc_prefix << "Flow has started." << endl;
       
       // receive data from user (MSG_WAITALL ensures that all the data
       // is read even if the process is INTerrupted)
       while ((nrecv = recv(sockfd_client, &pdu_data, PACKET_SIZE, MSG_WAITALL)) > 0) {
 	//cout << proc_prefix << "Received a packet" << endl;
-	gettimeofday(&cur_time,NULL);
-	delay = (cur_time.tv_sec - pdu_data.seconds) + (cur_time.tv_usec - pdu_data.micros) / 1e6;
-	fprintf(fp, "%3.9u,\t %ld.%3.6ld,\t %ld.%3.6ld,\t %f\n", pdu_data.seq, cur_time.tv_sec, cur_time.tv_usec, pdu_data.seconds, pdu_data.micros, delay);
+	if (log) {
+	  gettimeofday(&cur_time,NULL);
+	  delay = (cur_time.tv_sec - pdu_data.seconds) + (cur_time.tv_usec - pdu_data.micros) / 1e6;
+	  fprintf(fp, "%3.9u,\t %ld.%3.6ld,\t %ld.%3.6ld,\t %f\n", pdu_data.seq, cur_time.tv_sec, cur_time.tv_usec, pdu_data.seconds, pdu_data.micros, delay);
+	}
       }
       
       if (nrecv < 0 || errno == EINTR)
@@ -237,18 +270,21 @@ int main(int argc, char**argv)
 	cout << proc_prefix << "Flow has ended." << endl;
       
       // tcp flow ended
-      gettimeofday(&cur_time, NULL);
-      fprintf(fp, "END FLOW from %s:%s at TIMESTAMP %ld.%3.6ld\n", host, service, cur_time.tv_sec, cur_time.tv_usec);
-      fflush(fp);
+      if (log) {
+	gettimeofday(&cur_time, NULL);
+	fprintf(fp, "END FLOW from %s:%s at TIMESTAMP %ld.%3.6ld\n", host, service, cur_time.tv_sec, cur_time.tv_usec);
+	fflush(fp);
+      }
       
       if (verbose)
        	cout << proc_prefix << "Closing connection." << endl;
       
       close(sockfd_client);
       
-      fclose(fp);
+      if (log)
+	fclose(fp);
       
-      exit(0);
+      return 0;
     }
     
     if (verbose)
