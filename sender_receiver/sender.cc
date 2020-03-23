@@ -202,7 +202,6 @@ int main(int argc, char** argv)
   // commandline arguments
   char serv_ip[256];
   int serv_port;
-  int ttr;
   char logfilename[256];
   int max_flows = 0;
   
@@ -217,7 +216,7 @@ int main(int argc, char** argv)
   
   // we have been using only the "--type file" option so far
   char usage_str[200];
-  sprintf(usage_str, "Usage: %s <server IP> <port> <duration in secs> <logfilename> --type {const <num_packets> <probe_mode> | file <filepath>} [--maxflows <max_flows>]\n", argv[0]);
+  sprintf(usage_str, "Usage: %s <server IP> <port> <logfilename> --type {const <num_packets> <probe_mode> | file <filepath>} [--maxflows <max_flows>]\n", argv[0]);
   
   // Shiva: additional options for determining the manner of
   // generation of packets
@@ -229,16 +228,15 @@ int main(int argc, char** argv)
   // parse all commandline options
   sprintf(serv_ip, "%s", argv[1]);
   serv_port = atoi(argv[2]);
-  ttr = atoi(argv[3]); // this is time in seconds to run
-  sprintf(logfilename, "./%s", argv[4]);
+  sprintf(logfilename, "./%s", argv[3]);
   
-  if (strcmp(argv[5], "--type") == 0) {
-    if (strcmp(argv[6], "const") == 0) {
-      num_packets = atoi(argv[7]);
-      probe = bool(atoi(argv[8]));
+  if (strcmp(argv[4], "--type") == 0) {
+    if (strcmp(argv[5], "const") == 0) {
+      num_packets = atoi(argv[6]);
+      probe = bool(atoi(argv[7]));
       genmethod = 0;
-    } else if (strcmp(argv[6], "file") == 0) {
-      tracefilepath = argv[7];
+    } else if (strcmp(argv[5], "file") == 0) {
+      tracefilepath = argv[6];
       genmethod = 3;
     } else {
       puts(usage_str);
