@@ -85,7 +85,6 @@ int main(int argc, char**argv)
   bool log = false;
   
   float delay;
-  int nrecv, nsend;
   struct sockaddr_in bind_addr;
   struct sockaddr_in client_addr;
   socklen_t client_addr_len;
@@ -243,11 +242,13 @@ int main(int argc, char**argv)
 	fp = fopen(filename, "w");
       }
       
+      ssize_t nrecv, ntotal = 0;
+      
       // tcp flow started
       if (log) {
 	gettimeofday(&cur_time, NULL);
-	fprintf(fp, "\nSTART FLOW from %s:%s at TIMESTAMP %ld.%3.6ld\n", host, service, cur_time.tv_sec, cur_time.tv_usec);
-	fprintf(fp, "SEQ,\t received_time,\t sent_time,\t delay_s\n");
+	fprintf(fp, "\nSTART FLOW from %s:%s at TIME %ld.%3.6ld\n", host, service, cur_time.tv_sec, cur_time.tv_usec);
+	fprintf(fp, "SEQ, recv_bytes, recv_time, sent_time, delay_s\n");
       }
 
       if (verbose)
@@ -258,9 +259,10 @@ int main(int argc, char**argv)
       while ((nrecv = recv(sockfd_client, &pdu_data, PACKET_SIZE, MSG_WAITALL)) > 0) {
 	//cout << proc_prefix << "Received a packet" << endl;
 	if (log) {
+	  ntotal += nrecv;
 	  gettimeofday(&cur_time,NULL);
 	  delay = (cur_time.tv_sec - pdu_data.seconds) + (cur_time.tv_usec - pdu_data.micros) / 1e6;
-	  fprintf(fp, "%3.9u,\t %ld.%3.6ld,\t %ld.%3.6ld,\t %f\n", pdu_data.seq, cur_time.tv_sec, cur_time.tv_usec, pdu_data.seconds, pdu_data.micros, delay);
+	  fprintf(fp, "%3.9u, %zd, %ld.%3.6ld, %ld.%3.6ld, %f\n", pdu_data.seq, nrecv, cur_time.tv_sec, cur_time.tv_usec, pdu_data.seconds, pdu_data.micros, delay);
 	}
       }
       
@@ -272,7 +274,7 @@ int main(int argc, char**argv)
       // tcp flow ended
       if (log) {
 	gettimeofday(&cur_time, NULL);
-	fprintf(fp, "END FLOW from %s:%s at TIMESTAMP %ld.%3.6ld\n", host, service, cur_time.tv_sec, cur_time.tv_usec);
+	fprintf(fp, "END FLOW from %s:%s at TIME %ld.%3.6ld, BYTES %zd\n", host, service, cur_time.tv_sec, cur_time.tv_usec, ntotal);
 	fflush(fp);
       }
       

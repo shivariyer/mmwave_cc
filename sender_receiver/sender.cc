@@ -57,19 +57,20 @@ send_const(char *serv_ip, int serv_port, char *cc_protocol, int num_packets, boo
   cout << "Connected to " << serv_addr_p << ":" << serv_port << endl;
   cout << "Host name: " << host << ", service: " << service << endl;
   
-  // start logging for the flow
-  gettimeofday(&timestamp, NULL);
-  fprintf(logfp, "\nSTART FLOW %s:%s TIMESTAMP %ld.%3.6ld\n", host, service, timestamp.tv_sec, timestamp.tv_usec);
-  fprintf(logfp, "SEQ,\t sent_time\n");
-  
-  unsigned int seq = 0;
-  int i, nsend;
-  bool fail = false;
-  
   // allocate new packets to send
   packet_t *pdu_array = new packet_t[num_packets];
   packet_t *pdu;
   size_t packet_size = sizeof(packet_t);
+  
+  // start logging for the flow
+  gettimeofday(&timestamp, NULL);
+  fprintf(logfp, "\nSTART FLOW %s:%s TIME %ld.%3.6ld BYTES %zu*%d=%zu\n", host, service, timestamp.tv_sec, timestamp.tv_usec, sizeof(packet_t), num_packets, sizeof(packet_t) * num_packets);
+  fprintf(logfp, "SEQ,\t sent_time\n");
+  
+  unsigned int seq = 0;
+  int i;
+  ssize_t nsend, ntotal = 0;
+  bool fail = false;
   
   // send each packet one after another
   for (i = 0; i < num_packets; i++) {
@@ -86,6 +87,8 @@ send_const(char *serv_ip, int serv_port, char *cc_protocol, int num_packets, boo
       warn("send");
       fail = true;
     } else {
+      ntotal += nsend;
+      
       // log the packet
       if (probe)
 	fprintf(logfp, "%3.9u*,\t %ld.%3.6ld\n", pdu->seq, pdu->seconds, pdu->micros);
@@ -96,7 +99,7 @@ send_const(char *serv_ip, int serv_port, char *cc_protocol, int num_packets, boo
 
   // end tcp flow
   gettimeofday(&timestamp, NULL);
-  fprintf(logfp, "END FLOW %s:%s TIMESTAMP %ld.%3.6ld\n", host, service, timestamp.tv_sec, timestamp.tv_usec);
+  fprintf(logfp, "END FLOW %s:%s TIME %ld.%3.6ld BYTES %zd\n", host, service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
 
   // close the connection and the socket
   close(sockfd);
@@ -256,6 +259,7 @@ int main(int argc, char** argv)
       max_flows = 0;
   }
 
+  cout << "Packet size: " << sizeof(packet_t) << endl;
   cout << "Max flows: " << max_flows << endl;
   
   // open log file
