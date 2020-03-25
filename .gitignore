@@ -1,3 +1,7 @@
+# compiled files
+__pycache__
+*.pyc
+
 # directories
 /output
 
