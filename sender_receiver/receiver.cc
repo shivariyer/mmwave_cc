@@ -297,11 +297,13 @@ int main(int argc, char**argv)
   } // end while loop
 
   // wait for children to finish
-  cout << proc_prefix << "Waiting for any children to terminate ..." << endl;
+  if (verbose)
+    cout << proc_prefix << "Waiting for any children to terminate ..." << endl;
   pid_t pid;
   int stat;
   while ( (pid = waitpid(-1, &stat, 0)) > 0 )
-    cout << proc_prefix << "Server child " << pid << " has terminated." << endl;
+    if (verbose)
+      cout << proc_prefix << "Server child " << pid << " has terminated." << endl;
   
   if (verbose) 
     cout << proc_prefix << "Stopping the server ..." << endl;
