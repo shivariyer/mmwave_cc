@@ -1,7 +1,5 @@
+import os
 
-def scale(a):
-    return a/1000000.0
-    
 # parsing a trace file
 def parse_trace_file(filename):
     f1 = open (filename,"r")
@@ -20,161 +18,98 @@ def parse_trace_file(filename):
     return BW
 
 
-
-def parse_tcp_delays(filename):
+def parse_mm_queue_delays(filepath):
     base_timestamp = 0
-    first_timestamp = 0
-    last_timestamp = 0
     delays = []
-    signal_delay = {}
-    pointsx = []
-    pointsy = []
-
-
-    with open(filename) as f:
+    delaytimes = []
+    
+    with open(filepath) as f:
         for line in f:
             line = line.strip()
-            if '# base timestamp' in line:
+            if line.startswith('# base timestamp'):
                 base_timestamp = int(line.split(":")[-1])
                 continue
-            elif line[0] == '#':
-                continue
-
-            #print line 
-            original = line.split('~')[0]
-            words = original.split(' ')
-            if len(words) == 4:
-                [timestamp, event_type, num_bytes, delay] = words
-            elif len(words) == 5:
-                [timestamp, event_type, num_bytes, delay, temp] = words
-                #print delay
-            elif len(words) == 3:
-                [timestamp, event_type, num_bytes] = words
-                delay = ''
-
-            timestamp = float(timestamp)
-            
-
-            #print delay
-            timestamp = timestamp - base_timestamp
-
-            if last_timestamp == 0:
-                last_timestamp = first_timestamp = timestamp
-
-            last_timestamp = max(timestamp, last_timestamp)
-
-            if event_type == '-':
-                if delay == '':
-                    print "Delay is not supposed to be nothing for a - event "
-                else:
+            elif not line.startswith('#'):
+                words = line.split()
+                if words[1] == '-':
+                    timestamp = int(words[0]) - base_timestamp
+                    delay = float(words[3])
                     delays.append(delay)
-        #           signal_delay[timestamp-delay] = min(delay,signal_delay[timestamp-delay])
-                    delay = float(delay)
-                    pointsx.append(float(timestamp-delay)/1000.0)
-                    pointsy.append(delay)
-
-    print len(pointsx), len(pointsy)
+                    delaytimes.append(float(timestamp - delay) / 1000.0)
+    
+    return delays, delaytimes
 
 
-    print 'Max delay:', max(pointsy)
-    print 'Min delay:', min(pointsy)
-    print 'Avg delay:', sum(pointsy) / len(pointsy)
-    return pointsy,pointsx
-
-
-def ms_to_bin(ms,ms_per_bin):
-    return int(ms/ms_per_bin)
-
-def bin_to_seconds(b,ms_per_bin):
-    return float((b*ms_per_bin)/1000.0)
-
-def parse_tcp_throughput(filename):
-    ms_per_bin = 500
+def parse_mm_throughput(filepath, ms_per_bin=500):
+    
+    from tqdm import tqdm
+    from numpy import asarray
+    from pandas import DataFrame, Index
+    
+    # data contains (ms, cap, arr, dep)
     base_timestamp = 0
-
-    f = open(filename)
-    input_lines = f.readlines()
-    f.close()
-
-    arrivals = {}
-    capacities = {}
-    departures = {}
-    arrival_sum = 0
-    capacity_sum = 0
-    departure_sum = 0
-    bs = []
-    min_timestamp = -1
-    max_timestamp = -1
-
-    for line in input_lines:
-        if '# base timestamp:' in line:
-            base_timestamp = float(line.split(':')[-1])
-        elif line[0] != '#':
-            words = line.split('~')
-            temp = words[0].split()
-            try:
-                timestamp = float(temp[0])
-            except ValueError:
+    
+    ms_index = [0]
+    data = [[0, 0, 0]]
+    
+    cap_total = 0
+    dep_total = 0
+    arr_total = 0
+    
+    bin_cur = 0
+    
+    with open(filepath) as f:
+        
+        t = tqdm(total=os.stat(filepath).st_size, desc='Parsing the mm log for throughput')
+        
+        for line in f:
+            if line.startswith('# base timestamp'):
+                base_timestamp = int(line.split(":")[-1])
                 continue
-            try:
-                event_type = temp[1]
-            except IndexError:
-                continue
-
-            num_bytes = temp[2]
-            delay = 0
-            if len(temp) == 4:
-                delay = temp[3]
-
-            #to calculate average
-            if min_timestamp == -1:
-                min_timestamp = timestamp
-            if timestamp > max_timestamp:
-                max_timestamp = timestamp
-
-            num_bits = int(num_bytes)*8
-
-            b = ms_to_bin(timestamp,ms_per_bin)
-            if b not in bs:
-                bs.append(b)
-            if b not in arrivals:
-                arrivals[b] = 0
-            if b not in capacities:
-                capacities[b] = 0
-            if b not in departures:
-                departures[b] = 0
-            if event_type == '+':
-                arrivals[b]+=num_bits
-                arrival_sum+=num_bits
-            if event_type == '#':
-                capacities[b]+=num_bits
-                capacity_sum+=num_bits
-            if event_type == '-':
-                departures[b]+=num_bits
-                departure_sum+=num_bits
-
-    #print capacities
-    duration = (max_timestamp-min_timestamp)/1000.0
-    average_capacity = (capacity_sum/float(duration))/ 1000000.0
-    average_ingress = (arrival_sum/float(duration)) / 1000000.0
-    average_throughput = (departure_sum/float(duration)) / 1000000.0
-
-    print "average capacity: %f" %average_capacity
-    print "average ingress: %f" %average_ingress
-    print "average_throughput: %f" %average_throughput
-
-    caps = []
-    arr = []
-    deps = []
-    for b in bs:
-        caps.append((capacities[b]/(ms_per_bin/1000.0))/1000000.0)
-        arr.append((arrivals[b]/(ms_per_bin/1000.0))/1000000.0)
-        deps.append((departures[b]/(ms_per_bin/1000.0))/1000000.0)
-
-
-    xticks = []
-    for b in bs:
-        x = bin_to_seconds(b,ms_per_bin)
-        if x not in xticks:
-            xticks.append(x)
-    return xticks,caps,arr,deps
+            elif not line.startswith('#'):
+                words = line.split()
+                ms_elapsed = int(words[0]) - base_timestamp
+                bin_i = ms_elapsed // ms_per_bin
+                if bin_i > bin_cur:
+                    # new bin
+                    for i in range(bin_cur+1, bin_i+1):
+                        # if we jumped some bins, then fill those with
+                        # zeros
+                        ms_index.append(i)
+                        data.append([0, 0, 0])
+                    bin_cur = bin_i
+                
+                event_type = words[1]
+                pkt_len_bits = int(words[2]) * 8
+                
+                if event_type == '#':
+                    data[-1][0] += pkt_len_bits
+                    cap_total += pkt_len_bits
+                elif event_type == '+':
+                    data[-1][1] += pkt_len_bits
+                    arr_total += pkt_len_bits
+                elif event_type == '-':
+                    data[-1][2] += pkt_len_bits
+                    dep_total += pkt_len_bits
+            
+            t.update(len(line))
+        
+        t.close()
+    
+    # end of loop
+    
+    # compute avg cap, ingress and tput
+    cap_avg_Mbps = (cap_total / ms_elapsed) / 1000.0
+    ingress_avg_Mbps = (arr_total / ms_elapsed) / 1000.0
+    tput_avg_Mbps = (dep_total / ms_elapsed) / 1000.0
+    
+    print('Avg cap (Mbps):', cap_avg_Mbps)
+    print('Ingress rate (Mbps):', ingress_avg_Mbps)
+    print('Throughput (Mbps):', tput_avg_Mbps)
+    
+    # compute cap, ingress and tput per bin and put it in a table
+    data = DataFrame(asarray(data) / (ms_per_bin * 1000.0),
+                     Index(ms_index, name='seconds') * ms_per_bin / 1000,
+                     columns=['capacity', 'arrival', 'departure'])
+    
+    return ms_elapsed, data
