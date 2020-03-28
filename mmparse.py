@@ -40,7 +40,7 @@ def parse_mm_queue_delays(filepath):
     return delays, delaytimes
 
 
-def parse_mm_throughput(filepath, ms_per_bin=500):
+def parse_mm_throughput(filepath, ms_per_bin=500, verbose=True):
     
     from tqdm import tqdm
     from numpy import asarray
@@ -59,8 +59,9 @@ def parse_mm_throughput(filepath, ms_per_bin=500):
     bin_cur = 0
     
     with open(filepath) as f:
-        
-        t = tqdm(total=os.stat(filepath).st_size, desc='Parsing the mm log for throughput')
+
+        if (verbose):
+            t = tqdm(total=os.stat(filepath).st_size, desc='Parsing mm log')
         
         for line in f:
             if line.startswith('# base timestamp'):
@@ -91,10 +92,12 @@ def parse_mm_throughput(filepath, ms_per_bin=500):
                 elif event_type == '-':
                     data[-1][2] += pkt_len_bits
                     dep_total += pkt_len_bits
-            
-            t.update(len(line))
-        
-        t.close()
+
+            if verbose:
+                t.update(len(line))
+
+        if verbose:
+            t.close()
     
     # end of loop
     
@@ -103,13 +106,22 @@ def parse_mm_throughput(filepath, ms_per_bin=500):
     ingress_avg_Mbps = (arr_total / ms_elapsed) / 1000.0
     tput_avg_Mbps = (dep_total / ms_elapsed) / 1000.0
     
-    print('Avg cap (Mbps):', cap_avg_Mbps)
-    print('Ingress rate (Mbps):', ingress_avg_Mbps)
-    print('Throughput (Mbps):', tput_avg_Mbps)
+    # print('Avg cap (Mbps):', cap_avg_Mbps)
+    # print('Ingress rate (Mbps):', ingress_avg_Mbps)
+    # print('Throughput (Mbps):', tput_avg_Mbps)
     
     # compute cap, ingress and tput per bin and put it in a table
     data = DataFrame(asarray(data) / (ms_per_bin * 1000.0),
                      Index(ms_index, name='seconds') * ms_per_bin / 1000,
-                     columns=['capacity', 'arrival', 'departure'])
+                     columns=['capacity', 'ingress', 'throughput'])
     
-    return ms_elapsed, data
+    result_dict = {'duration_ms' : ms_elapsed,
+                   'capacity_avg' : cap_avg_Mbps,
+                   'ingress_avg' : ingress_avg_Mbps,
+                   'throughput_avg' : tput_avg_Mbps,
+                   'capacity' : data.capacity,
+                   'ingress' : data.ingress,
+                   'throughput' : data.throughput,
+                   'utilization' : (tput_avg_Mbps / cap_avg_Mbps) * 100}
+                   
+    return result_dict
