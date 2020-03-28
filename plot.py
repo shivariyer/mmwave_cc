@@ -5,6 +5,8 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 
+from glob import glob
+
 def plot_bgtrace(tracename):
     inpdir = os.path.join('traces', 'channels')
     bw = parse_trace_file(os.path.join(inpdir, tracename))
@@ -36,51 +38,72 @@ def plot_bgtrace(tracename):
     plt.close()
 
 
-def plot_tput_delay(filepath, ms_per_bin=500):
+def plot_tput_delay(filepath, ms_per_bin=500, title=None, disp=True, save=False):
+
+    plt.rc('font', size=20)
     
     delays, delaytimes = parse_mm_queue_delays(filepath)
-    print('Max delay:', max(delays))
-    print('Min delay:', min(delays))
-    print('Avg delay:', sum(delays) / len(delays))
-
-    ms_elapsed, data = parse_mm_throughput(filepath, ms_per_bin)
-    print(data.index)
-    #timeDL, caps, arr, throughputDL = parse_tcp_throughput(file_to_plot)
+    data = parse_mm_throughput(filepath, ms_per_bin)
     
-    fig = plt.figure(figsize=(6,3), facecolor='w')
+    cap = data['capacity']
+    tput = data['throughput']
+    
+    fig = plt.figure(figsize=(12,12), facecolor='w')
+    
     ax1 = plt.subplot(2, 1, 1)
-    ax2 = plt.subplot(2, 1, 2, sharex=ax1)
-
-    labels = ['Capacity','Arrivals','Throughput']
-    p3, = ax2.plot(delaytimes, delays,'k-',lw=1, label='Delay')
-    #ax1.plot(data.index, data.capacity,'k-',lw=1,label=labels[0])
-    p2 = ax1.fill_between(data.index, 0, data.capacity,color='#F2D19F',label='Capacity')
-
-    #ax1.plot(data.index, data.arrival,'k-',label=labels[1])
-    p1, = ax1.plot(data.index, data.departure,'k--',label=labels[2])
-
-    print('Avg utilization:', np.ma.masked_invalid(np.divide(data.departure, data.capacity)).mean() * 100)
-
-    box = ax1.get_position()
-    ax1.set_position([box.x0, box.y0 + box.height * 0.1,
-                 box.width, box.height * 0.9])
-    ax1.legend((p1, p2, p3), (p1.get_label(), p2.get_label(), p3.get_label()), loc='upper center', bbox_to_anchor=(0.5, 1.4), ncol=5, fontsize='small')
+    p1 = ax1.fill_between(cap.index, 0, cap.values, color='#F2D19F', label='Capacity')
+    p2, = ax1.plot(tput.index, tput.values, 'k--', label='Throughput')
     
+    ax2 = plt.subplot(2, 1, 2, sharex=ax1)
+    p3, = ax2.plot(delaytimes, delays, 'k-', lw=1, label='Delay')
+    
+    fig.legend((p1, p2, p3), (p1.get_label(), p2.get_label(), p3.get_label()), loc='lower center', ncol=3, fontsize='small')
+    
+    if title is not None:
+        fig.suptitle(title)
+    
+    ax1.set_title('Cap: {:.2f} Mbps, Tput: {:.2f} Mbps, Util: {:.2f}%'.format(data['capacity_avg'], data['throughput_avg'], (data['throughput_avg'] / data['capacity_avg']) * 100))
     ax1.set_ylabel('Mbps')
+    
+    ax2.set_title('Delay (min, max, avg) = ({:.2f}, {:.2f}, {:.2f})'.format(min(delays), max(delays), sum(delays)/len(delays)))
     ax2.set_ylabel('Delay (ms)')
-    plt.xlabel('Time (sec)')
+    
+    ax2.set_xlabel('Time (sec)')
+    
+    ax1.tick_params(bottom=0)
+    plt.setp(ax1.xaxis.get_ticklabels(), visible=False)
     
     #plt.xlim(0,60)
-    plt.tight_layout()
-    #plt.savefig(name.split('.')[0]+'.pdf',dpi=1000,bbox_inches='tight')
-    plt.show()
+    #fig.tight_layout()
+    #fig.subplots_adjust(bottom=0.2, hspace=0)
+    #ax1.title.set_position((0.5, 0.85))
+    #ax2.title.set_position((0.5, 0.85))
+    
+    if save:
+        savepath = os.path.splitext(filepath)[0] + '.png'
+        print('Saving to', savepath)
+        fig.savefig(savepath)
+    
+    if disp:
+        plt.show()
+    
     plt.close()
+    plt.rcdefaults()
 
 
 if __name__ == '__main__':
 
-    if len(sys.argv) < 2:
-        print('Usage: {} <mm_log_file>'.format(sys.argv[0]))
-        sys.exit(-1)
+    # if len(sys.argv) < 2:
+    #     print('Usage: {} <mm_log_file>'.format(sys.argv[0]))
+    #     sys.exit(-1)
     
-    plot_tput_delay(sys.argv[1])
+    # plot_tput_delay(sys.argv[1], title='Title')
+    
+    # batch generation of tput-delay plots for all results
+    for ii, algo in enumerate(['bbr', 'bicdctcp_100000', 'bicdctcp_1000000', 'copa', 'cubic', 'reno'], 1):
+        print(os.linesep, ii, algo, os.linesep)
+        flist = glob('output/{}/*/*_downlink.csv'.format(algo))
+        flist.sort()
+        for jj, fpath in enumerate(flist, 1):
+            print('{}/{} {}'.format(jj, len(flist), fpath))
+            plot_tput_delay(fpath, title=algo.upper(), disp=False, save=True)
