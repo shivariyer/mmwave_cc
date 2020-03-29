@@ -4,6 +4,7 @@ __pycache__
 
 # directories
 /output
+/results
 
 # executable files
 sender_receiver/sender
