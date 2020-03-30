@@ -1,52 +1,36 @@
-#!/usr/bin/env python
-
 import os
 import argparse
 import numpy as np
-from os import path
-#from helpers import make_sure_path_exists
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--bandwidth', '-bw', metavar='Mbps', required=True,
-                        help='constant bandwidth (Mbps)')
-    parser.add_argument('--output-dir', '-of', metavar='DIR', required=True,
-                        help='directory to output trace')
-    parser.add_argument('--burst', metavar=('BURST_INTERVAL', 'BURST_LENGTH'), nargs=2,
-                        help='2 parameters, 1) interval between bursts (ms), 2) length of burst')
-    parser.add_argument('--duration', type=int, default=60, help='Duration of trace (in seconds)')
-    parser.add_argument('--seed', type=int, default=0, help='Random seed')
-    args = parser.parse_args()
-    
-    np.random.seed(args.seed)
+def gen_trace(send_rate, duration=60, probe=None, seed=None, savedir=os.path.join('traces', 'background')):
+    np.random.seed(seed)
 
     # number of packets in 60 seconds
-    num_packets = int(float(args.bandwidth) * 5000 * args.duration / 60.0)
-    lamb = 1000.0 * args.duration/float(num_packets)
+    num_packets = int(float(send_rate) * 5000 * duration / 60.0)
+    lamb = 1000.0 * duration/float(num_packets)
     print(lamb)
-    ts_list = np.cumsum(np.random.poisson(lamb,num_packets))
-
-    if args.burst is None:
+    ts_list = np.cumsum(np.random.poisson(lamb, num_packets))
+    if probe is None:
         ts_list_copy = ts_list
-        trace_path = path.join(args.output_dir, '{}mbps-T{}-seed{}.trace'.format(args.bandwidth, args.duration, args.seed))
+        trace_path = os.path.join(savedir, '{}Mbps-T{}-seed{}.trace'.format(send_rate, duration, seed))
     else:
-        burst_interval = float(args.burst[0])
-        burst_length = int(args.burst[1])
+        probe_interval = float(probe[0])
+        probe_length = int(probe[1])
         
         # adding spikes
         ts_list_copy = []
-        burst_point = burst_interval
+        probe_point = probe_interval
         for ele in ts_list:
-            if ele >= burst_point:
-                    ts_list_copy.extend(['{}*'.format(int(burst_point))] * burst_length)
-                    burst_point += burst_interval
+            if ele >= probe_point:
+                    ts_list_copy.extend(['{}*'.format(int(probe_point))] * probe_length)
+                    probe_point += probe_interval
             ts_list_copy.append(str(ele))
     
-        trace_path = path.join(args.output_dir, '{}mbps-bint{}-blen{}-T{}-seed{}.trace'.format(args.bandwidth, args.burst[0], args.burst[1], args.duration, args.seed))
+        trace_path = os.path.join(savedir, '{}Mbps-T{}-bint{}-blen{}-seed{}.trace'.format(send_rate, probe[0], probe[1], duration, seed))
 
-    if not os.path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
+    if not os.path.exists(savedir):
+        os.makedirs(savedir)
     
     # write timestamps to trace
     with open(trace_path, 'w') as trace:
@@ -55,4 +39,17 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser('Generate trace files for generating TCP traffic for our experiments')
+    parser.add_argument('rate', metavar='RATE_Mbps',
+                        help='Rate at which to generate packets (Mbps)')
+    parser.add_argument('--duration', type=int, default=60,
+                        help='Duration of trace (in seconds)')
+    parser.add_argument('--probe', metavar=('PROBE_INTERVAL', 'PROBE_LENGTH'), nargs=2,
+                        help='Send probe packets given, 1) interval between probes (ms), 2) length of a probe (packets)')
+    parser.add_argument('--seed', type=int, default=0,
+                        help='Random seed')
+    parser.add_argument('--output-dir', '-of', metavar='SAVE_DIR', default=os.path.join('traces', 'background'), 
+                        help='Location to save generated traces')
+    args = parser.parse_args()
+    
+    gen_trace(args.rate, args.duration, args.probe, args.seed, args.output_dir)
