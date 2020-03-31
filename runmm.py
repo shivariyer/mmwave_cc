@@ -7,12 +7,12 @@ import threading
 import subprocess
 
 from time import sleep
+from plot import plot_tput_delay
 
 def RunSim():
     server_ip = "100.64.0.1" # MAHIMAHI_BASE: address exposed by native machine to processes inside mahimahi
     server_reverse_ip = "100.64.0.2" # address exposed by mahimahi to processes outside
-    #server_ip = args.servAddr
-    
+        
     if args.const is not None:
         saveprefix = '{}_const_{}_{}'.format(args.trace, args.const[0], args.const[1])
     elif args.filepath is not None:
@@ -22,17 +22,18 @@ def RunSim():
     if args.queue is not None:
         saveprefix += '_q{}'.format(args.queue)
     
+    savepathprefix = os.path.join(args.dir, saveprefix)
+    
     # (1) starting the server receiver in a separate process inside a mahimahi shell
     receiver_cmd = ' -- sender_receiver/receiver {} {} {:d}'.format(args.port, args.maxflows, args.verbose) # removed "&"
     if args.recvlog:
-        recvlogdir = os.path.join(args.dir, saveprefix + '_receiver')
+        recvlogdir = savepathprefix + '_receiver'
         if not os.path.exists(recvlogdir):
             os.mkdir(recvlogdir)
-        recvlogfpathprefix = os.path.join(recvlogdir, 'recvlog')
-        receiver_cmd += ' --log {}'.format(recvlogfpathprefix)
-    #print('Receiver run using command:', receiver_cmd)
+        receiver_cmd += ' --log {}'.format(os.path.join(recvlogdir, 'recvlog'))
     
-    mm_cmd = "mm-link {0} {0} --uplink-log {1}_uplink.csv --downlink-log {1}_downlink.csv".format(os.path.join('traces', 'channels', args.trace), os.path.join(args.dir, saveprefix))
+    tracepath = os.path.join('traces', 'channels', args.trace)
+    mm_cmd = "mm-link {0} {0} --uplink-log {1}_uplink.csv --downlink-log {1}_downlink.csv".format(tracepath, savepathprefix)
     if args.queue is not None:
         mm_cmd += " --uplink-queue=droptail --uplink-queue-args=bytes={}".format(args.queue)
     
@@ -47,13 +48,10 @@ def RunSim():
     
     print('Mahimahi process started, pid', mm_process.pid)
     
-    #receiver_process = subprocess.Popen(receiver_cmd.split()) # shell=True
-    #print('Receiver started, pid', receiver_process.pid)
-    
     # starting the mahimahi router in a separate process
     
     # starting the user sender
-    senderlogfpath = os.path.join(args.dir, saveprefix + '_sender.log')
+    senderlogfpath = savepathprefix + '_sender.log'
     sender_cmd = 'sender_receiver/sender {} {} {} --type '.format(server_reverse_ip, args.port, senderlogfpath)
     if args.const is not None:
         sender_cmd += 'const {} {}'.format(args.const[0], args.const[1])
@@ -61,35 +59,22 @@ def RunSim():
         sender_cmd += 'file ' + args.filepath
         sender_cmd += ' --maxflows {}'.format(args.maxflows)
     
-    #print(sender_cmd)
-    #stdout, _ = mm_process.communicate(sender_cmd)
-    #print('mm_process.communicate() has returned.')
-    #print('stdout:', stdout)
-    
     print('Starting sender using command:', sender_cmd)
     sender_process = subprocess.Popen(sender_cmd.split(), stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     #sender_process = subprocess.Popen(sender_cmd.split())
     print('Sender started, pid', sender_process.pid)
     
-    # sleep(args.time)
-    #sleep(5)
-    
     # waiting for processes to close
-
+    
     print('Waiting for sender process ...')
     print('Sender process returned', sender_process.wait())
     
     print('Waiting for receiver process ...')
-    #mm_process.send_signal(signal.SIGINT)
     print('Mahimahi process returned', mm_process.wait())
     
-    # print('Waiting for server process to close.')
-    # receiver_process.send_signal(signal.SIGINT)
-    # print('Server process returned', receiver_process.wait())
-    # print('Done!')
+    print('Plotting performance ...')
+    plot_tput_delay(savepathprefix + '_downlink.csv', title=os.path.basename(savepathprefix), disp=True, save=True)
     
-    # subprocess.call("sudo pkill sender_sender", shell=True)
-    # subprocess.call("sudo pkill -INT server_receiver", shell=True)
     print('Done!')
     
     return
@@ -113,10 +98,6 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser(description="Run mahimahi for cellular network simulations")
     
-    # parser.add_argument('--servaddr', '-sa',
-    #     		help="Server address, make it match with a local interface different from localhost",
-    #     		required=True)
-
     parser.add_argument('trace', metavar='CHANNEL_TRACE', 
                         help='Cellsim traces to be used (channel simulation; choose one from traces/channels/)')
     

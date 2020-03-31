@@ -48,7 +48,7 @@ def plot_tput_delay(filepath, ms_per_bin=500, title=None, disp=True, save=False)
     cap = data['capacity']
     tput = data['throughput']
     
-    fig = plt.figure(figsize=(12,12), facecolor='w')
+    fig = plt.figure(figsize=(16,12), facecolor='w')
     
     ax1 = plt.subplot(2, 1, 1)
     p1 = ax1.fill_between(cap.index, 0, cap.values, color='#F2D19F', label='Capacity')
@@ -75,7 +75,7 @@ def plot_tput_delay(filepath, ms_per_bin=500, title=None, disp=True, save=False)
     
     #plt.xlim(0,60)
     #fig.tight_layout()
-    #fig.subplots_adjust(bottom=0.2, hspace=0)
+    fig.subplots_adjust(hspace=0.15)
     #ax1.title.set_position((0.5, 0.85))
     #ax2.title.set_position((0.5, 0.85))
     
