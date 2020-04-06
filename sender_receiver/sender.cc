@@ -127,8 +127,8 @@ send_ttr(struct tcp_conn *conn, unsigned int ttr, unsigned int blksize, bool pro
   
   // start logging for the flow
   if (logfp) {
-    fprintf(logfp, "\nSTART SEND %s:%s TIME %ld.%3.6ld TTR %d s\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ttr);
-    fprintf(logfp, "SEQ,\t sent_bytes,\t sent_time\n");
+    fprintf(logfp, "\nSTART SEND %s:%s TIME %ld.%.6ld TTR %d seconds\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ttr);
+    fprintf(logfp, "%9s, %11s, %18s\n", "SEQ", "sent_bytes", "sent_time");
   }
   
   unsigned int seq = 0;
@@ -158,7 +158,7 @@ send_ttr(struct tcp_conn *conn, unsigned int ttr, unsigned int blksize, bool pro
       ntotal += nsend;
       // log the send
       if (logfp)
-	fprintf(logfp, "%3.9u,\t %zd,\t %ld.%3.6ld\n", seq, nsend, timestamp.tv_sec, timestamp.tv_usec);
+	fprintf(logfp, "%09u, %11zd, %11ld.%.6ld\n", seq, nsend, timestamp.tv_sec, timestamp.tv_usec);
     }
     
     gettimeofday(&timestamp, NULL);
@@ -166,8 +166,8 @@ send_ttr(struct tcp_conn *conn, unsigned int ttr, unsigned int blksize, bool pro
   } while ((timestamp.tv_sec - start_s) < ttr);
   
   // end tcp flow
-  gettimeofday(&timestamp, NULL);
-  fprintf(logfp, "END SEND %s:%s TIME %ld.%3.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
+  //gettimeofday(&timestamp, NULL);
+  fprintf(logfp, "END SEND %s:%s TIME %ld.%.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
   
   // close the connection and the socket
   // close(sockfd);
@@ -192,8 +192,8 @@ send_nblocks(struct tcp_conn *conn, int n_blocks, unsigned int blksize, bool pro
   
   // start logging for the flow
   if (logfp) {
-    fprintf(logfp, "\nSTART SEND %s:%s TIME %ld.%3.6ld DATA %zu*%u=%zu KiB\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, PACKET_SIZE, blksize, PACKET_SIZE * blksize);
-    fprintf(logfp, "SEQ,\t sent_bytes,\t sent_time\n");
+    fprintf(logfp, "\nSTART SEND %s:%s TIME %ld.%.6ld DATA %zu*%u=%zu KiB\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, PACKET_SIZE, blksize, PACKET_SIZE * blksize);
+    fprintf(logfp, "%9s, %11s, %18s\n", "SEQ", "sent_bytes", "sent_time");
   }
   
   unsigned int seq;
@@ -221,13 +221,13 @@ send_nblocks(struct tcp_conn *conn, int n_blocks, unsigned int blksize, bool pro
       ntotal += nsend;
       // log the send
       if (logfp)
-	fprintf(logfp, "%3.9u,\t %zd,\t %ld.%3.6ld\n", seq, nsend, timestamp.tv_sec, timestamp.tv_usec);
+	fprintf(logfp, "%09u, %11zd, %11ld.%.6ld\n", seq, nsend, timestamp.tv_sec, timestamp.tv_usec);
     }
   }
   
   // end tcp flow
   gettimeofday(&timestamp, NULL);
-  fprintf(logfp, "END SEND %s:%s TIME %ld.%3.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
+  fprintf(logfp, "END SEND %s:%s TIME %ld.%.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
   
   // close the connection and the socket
   // close(sockfd);
@@ -269,8 +269,8 @@ send_fromtrace(struct tcp_conn *conn, char *tracefilepath) {
   
   // start logging for the flow
   if (logfp) {
-    fprintf(logfp, "\nSTART SEND %s:%s TIME %ld.%3.6ld FILE %s\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, tracefilepath);
-    fprintf(logfp, "SEQ,\t sent_bytes,\t sent_time\n");
+    fprintf(logfp, "\nSTART SEND %s:%s TIME %ld.%.6ld FILE %s\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, tracefilepath);
+    fprintf(logfp, "%9s, %11s, %18s\n", "SEQ", "sent_bytes", "sent_time");
   }
   
   while (fgets(line, 10, fp) != NULL) {
@@ -338,7 +338,7 @@ send_fromtrace(struct tcp_conn *conn, char *tracefilepath) {
 	ntotal += nsend;
 	// log the send
 	if (logfp)
-	  fprintf(logfp, "%3.9u,\t %zd,\t %ld.%3.6ld\n", seq, nsend, timestamp.tv_sec, timestamp.tv_usec);
+	  fprintf(logfp, "%09u, %11zd, %11ld.%.6ld\n", seq, nsend, timestamp.tv_sec, timestamp.tv_usec);
       }
       
       delete block;
@@ -360,7 +360,7 @@ send_fromtrace(struct tcp_conn *conn, char *tracefilepath) {
   }
   
   gettimeofday(&timestamp, NULL);
-  fprintf(logfp, "END SEND %s:%s TIME %ld.%3.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
+  fprintf(logfp, "END SEND %s:%s TIME %ld.%.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
   
   cout << "Done sending trace." << endl;
   
