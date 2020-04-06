@@ -20,9 +20,9 @@
 #include <sys/socket.h>
 #include <iostream>
 
-#define MTU          1500
+#define PACKET_SIZE  (size_t) 1024
 
-#define PAYLOAD_LEN  1483
+#define PAYLOAD_LEN  PACKET_SIZE - sizeof(unsigned int) - sizeof(time_t) - sizeof(long) - (size_t) 1
 
 #define LISTENQ      1024
 
@@ -56,8 +56,6 @@ typedef struct __attribute__((packed, aligned(2))) {
   bool probe;			// whether this a probe packet or bg traffic packet
   char buf[PAYLOAD_LEN];	// payload
 } packet_t;
-
-#define PACKET_SIZE sizeof(packet_t)
 
 typedef struct __attribute__((packed, aligned(2))) {
   unsigned int seq;		// seq number of packet

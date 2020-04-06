@@ -3,119 +3,246 @@
 using namespace std;
 
 
-extern int errno;
+//extern int errno;
 //int err;
-static FILE *logfp;
+static FILE *logfp = NULL;
 struct timeval timestamp;
 
-/* send_const: send a lumpsum of number of packets in a single tcp flow. */
-int
-send_const(char *serv_ip, int serv_port, char *cc_protocol, int num_packets, bool probe) {
 
-  // establish connection first
-  struct sockaddr_in serv_addr;
+/* three sending modes for sender */
+union send_mode {
+  unsigned int ttr;
+  unsigned int n_blocks;
+  char *tracefilepath;
+};
 
+
+/* connection parameters */
+struct tcp_conn {
   int sockfd;
+  struct sockaddr_in serv_addr;
+  //char serv_addr_p[INET_ADDRSTRLEN];
+  char host[NI_MAXHOST];
+  char service[NI_MAXSERV];
+};
+
+
+/* follow all steps to setup the connection, set relevant socket options */
+int
+setup_tcp_connection(char *serv_ip, int serv_port, char *cc_protocol, struct tcp_conn *conn) {
+  
+  int ret = 0;
+  
+  if (conn == NULL) {
+    cerr << "Cannot setup connection if \'conn\' is NULL!" << endl;
+    return -1;
+  }
+  
+  struct sockaddr_in *serv_addr = &(conn->serv_addr);
   
   // opening a tcp socket
-  if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-    err(-1, "socket");
-
-  int enabled = 1;
-  if ((setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enabled, sizeof(enabled)) != 0))
-    err(-1, "sockopt SO_REUSEADDR");
+  if ((conn->sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    //err(-1, "socket");
+    ret = errno;
+    perror("socket");
+    return ret;
+  }
   
-  if ((setsockopt(sockfd, IPPROTO_TCP, TCP_CONGESTION, cc_protocol, strlen(cc_protocol)) != 0))
-    err(-1, "sockopt TCP_CONGESTION");
+  int enabled = 1;
+  if ((setsockopt(conn->sockfd, SOL_SOCKET, SO_REUSEADDR, &enabled, sizeof(enabled)) != 0)) {
+    //err(-1, "sockopt SO_REUSEADDR");
+    ret = errno;
+    perror("sockopt SO_REUSEADDR");
+    close(conn->sockfd);
+    return ret;
+  }
+  
+  // set the TCP congestion control protocol to be used
+  if (cc_protocol != NULL)
+    if ((setsockopt(conn->sockfd, IPPROTO_TCP, TCP_CONGESTION, cc_protocol, strlen(cc_protocol)) != 0)) {
+      //err(-1, "sockopt TCP_CONGESTION");
+      ret = errno;
+      perror("sockopt TCP_CONGESTION");
+      close(conn->sockfd);
+      return ret;
+    }
+  
+  // initialize the server struct with server address info
+  memset(serv_addr, 0, sizeof(*serv_addr));
+  serv_addr->sin_family = AF_INET;
+  serv_addr->sin_port = htons(serv_port);
+  //serv_addr->sin_addr.s_addr = inet_addr(serv_ip);
+  if (inet_pton(AF_INET, serv_ip, &(serv_addr->sin_addr)) <= 0) {
+    //err(-1, "inet_pton");
+    ret = errno;
+    perror("inet_pton");
+    close(conn->sockfd);
+    return ret;
+  }
   
   // connect to the server
-  memset(&serv_addr, 0, sizeof(serv_addr));
-  serv_addr.sin_family = AF_INET;
-  serv_addr.sin_port = htons(serv_port);
-  //serv_addr.sin_addr.s_addr = inet_addr(serv_ip);
-  if (inet_pton(AF_INET, serv_ip, &serv_addr.sin_addr) <= 0)
-    err(-1, "inet_pton");
-  
-  if (connect(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
-    err(-1, "connect");
+  if (connect(conn->sockfd, (struct sockaddr *) serv_addr, sizeof(*serv_addr)) < 0) {
+    //err(-1, "connect");
+    ret = errno;
+    perror("connect");
+    close(conn->sockfd);
+    return ret;
+  }
   
   // report successful connection to server
   
-  // print server address and port
-  char serv_addr_p[INET_ADDRSTRLEN] = "X.X.X.X";
-  if (inet_ntop(AF_INET, &serv_addr.sin_addr, serv_addr_p, INET_ADDRSTRLEN) == NULL) 
-    warn("inet_ntop");
+  // // print server address and port
+  // if (inet_ntop(AF_INET, &(serv_addr->sin_addr), conn->serv_addr_p, INET_ADDRSTRLEN) == NULL) {
+  //   warn("inet_ntop");
+  //   strcpy(conn->serv_addr_p, serv_ip);
+  // }
   
-  // print host name and service (DNS lookup)
-  char host[NI_MAXHOST] = "unknown";
-  char service[NI_MAXSERV] = "unknown";
-  int s = getnameinfo((struct sockaddr *) &serv_addr, sizeof(serv_addr), host, NI_MAXHOST, service, NI_MAXSERV, NI_NUMERICSERV);
+  // print host name and service (DNS lookup) (if possible and available)
+  int s = getnameinfo((struct sockaddr *) serv_addr, sizeof(*serv_addr), conn->host, NI_MAXHOST, conn->service, NI_MAXSERV, NI_NUMERICSERV);
+  if (s != 0) {
+    cerr << "getnameinfo: " << gai_strerror(s) << endl;
+    strcpy(conn->host, serv_ip);
+    sprintf(conn->service, "%d", serv_port);
+  }
   
-  if (s != 0)
-    fprintf(stderr, "getnameinfo: %s\n", gai_strerror(s));
+  cout << "Connected to " << serv_ip << ":" << serv_port << endl;
+  cout << "Host name: " << conn->host << ", service: " << conn->service << endl;
   
-  cout << "Connected to " << serv_addr_p << ":" << serv_port << endl;
-  cout << "Host name: " << host << ", service: " << service << endl;
+  return ret;
+}
+
+
+/* send_ttr: keep sending a block of packets for 'ttr' seconds. */
+int
+send_ttr(struct tcp_conn *conn, unsigned int ttr, unsigned int blksize, bool probe) {
+  
+  // TODO: communicate the blocksize
   
   // allocate new packets to send
-  packet_t *pdu_array = new packet_t[num_packets];
-  packet_t *pdu;
-  size_t packet_size = sizeof(packet_t);
+  packet_t *block = new packet_t[blksize];
+  
+  // record start timestamp
+  gettimeofday(&timestamp, NULL);
+  time_t start_s = timestamp.tv_sec;
   
   // start logging for the flow
-  gettimeofday(&timestamp, NULL);
-  fprintf(logfp, "\nSTART FLOW %s:%s TIME %ld.%3.6ld BYTES %zu*%d=%zu\n", host, service, timestamp.tv_sec, timestamp.tv_usec, sizeof(packet_t), num_packets, sizeof(packet_t) * num_packets);
-  fprintf(logfp, "SEQ,\t sent_time\n");
+  if (logfp) {
+    fprintf(logfp, "\nSTART SEND %s:%s TIME %ld.%3.6ld TTR %d s\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ttr);
+    fprintf(logfp, "SEQ,\t sent_bytes,\t sent_time\n");
+  }
   
   unsigned int seq = 0;
   int i;
   ssize_t nsend, ntotal = 0;
   bool fail = false;
   
-  // send each packet one after another
-  for (i = 0; i < num_packets; i++) {
-    pdu = &pdu_array[i];
+  do {
+    
+    seq++;
     
     gettimeofday(&timestamp, NULL);
-    pdu->seq = ++seq;
-    pdu->seconds = timestamp.tv_sec;
-    pdu->micros = timestamp.tv_usec;
-    pdu->probe = probe;
     
-    if ((nsend = send(sockfd, pdu, packet_size, MSG_MORE)) != packet_size) {
+    for (i = 0; i < blksize; i++) {
+      block[i].seq = seq;
+      block[i].seconds = timestamp.tv_sec;
+      block[i].micros = timestamp.tv_usec;
+      block[i].probe = probe;
+    }
+    
+    // send all packets in one shot
+    if ((nsend = send(conn->sockfd, block, blksize * PACKET_SIZE, 0)) != (blksize * PACKET_SIZE)) {
       // report problem
       warn("send");
       fail = true;
     } else {
       ntotal += nsend;
-      
-      // log the packet
-      if (probe)
-	fprintf(logfp, "%3.9u*,\t %ld.%3.6ld\n", pdu->seq, pdu->seconds, pdu->micros);
-      else
-	fprintf(logfp, "%3.9u,\t %ld.%3.6ld\n", pdu->seq, pdu->seconds, pdu->micros);
+      // log the send
+      if (logfp)
+	fprintf(logfp, "%3.9u,\t %zd,\t %ld.%3.6ld\n", seq, nsend, timestamp.tv_sec, timestamp.tv_usec);
     }
-  }
-
+    
+    gettimeofday(&timestamp, NULL);
+    
+  } while ((timestamp.tv_sec - start_s) < ttr);
+  
   // end tcp flow
   gettimeofday(&timestamp, NULL);
-  fprintf(logfp, "END FLOW %s:%s TIME %ld.%3.6ld BYTES %zd\n", host, service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
-
+  fprintf(logfp, "END SEND %s:%s TIME %ld.%3.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
+  
   // close the connection and the socket
-  close(sockfd);
+  // close(sockfd);
   
-  delete pdu_array;
+  delete block;
   
-  return fail;
+  return int(fail);
+}
+
+
+/* send_nblocks: send specified number of blocks of packets. */
+int
+send_nblocks(struct tcp_conn *conn, int n_blocks, unsigned int blksize, bool probe) {
+  
+  // TODO: communicate the blocksize
+  
+  // allocate new packets to send
+  packet_t *block = new packet_t[blksize];
+  
+  // record start timestamp
+  gettimeofday(&timestamp, NULL);
+  
+  // start logging for the flow
+  if (logfp) {
+    fprintf(logfp, "\nSTART SEND %s:%s TIME %ld.%3.6ld DATA %zu*%u=%zu KiB\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, PACKET_SIZE, blksize, PACKET_SIZE * blksize);
+    fprintf(logfp, "SEQ,\t sent_bytes,\t sent_time\n");
+  }
+  
+  unsigned int seq;
+  int i;
+  ssize_t nsend, ntotal = 0;
+  bool fail = false;
+  
+  for (seq = 1; seq <= n_blocks; seq++) {
+    
+    gettimeofday(&timestamp, NULL);
+
+    for (i = 0; i < blksize; i++) {
+      block[i].seq = seq;
+      block[i].seconds = timestamp.tv_sec;
+      block[i].micros = timestamp.tv_usec;
+      block[i].probe = probe;
+    }
+    
+    // send all packets in one shot
+    if ((nsend = send(conn->sockfd, block, blksize * PACKET_SIZE, 0)) != (blksize * PACKET_SIZE)) {
+      // report problem
+      warn("send");
+      fail = true;
+    } else {
+      ntotal += nsend;
+      // log the send
+      if (logfp)
+	fprintf(logfp, "%3.9u,\t %zd,\t %ld.%3.6ld\n", seq, nsend, timestamp.tv_sec, timestamp.tv_usec);
+    }
+  }
+  
+  // end tcp flow
+  gettimeofday(&timestamp, NULL);
+  fprintf(logfp, "END SEND %s:%s TIME %ld.%3.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
+  
+  // close the connection and the socket
+  // close(sockfd);
+  
+  delete block;
+  
+  return int(fail);
 }
 
 
 /* send_fromtrace: Send packets by reading from a file. */
 int
-send_fromtrace(char *serv_ip, int serv_port, char *tracefilepath, int max_flows) {
+send_fromtrace(struct tcp_conn *conn, char *tracefilepath) {
   
-  // establish connection first
-  struct sockaddr_in serv_addr;
+  // TODO: communicate the blocksize, which is PACKET_SIZE in this case
   
   // open trace file
   FILE *fp = fopen(tracefilepath, "r");
@@ -125,18 +252,32 @@ send_fromtrace(char *serv_ip, int serv_port, char *tracefilepath, int max_flows)
   useconds_t sleep_duration;
   bool probe = false;
   bool probe_prev = false;
-  char cc_protocol[10];
+  //char cc_protocol[10];
   int count = 0;
-  int flow_count = 0;
+  //int flow_count = 0;
+  
+  packet_t *block;
+  unsigned int seq = 0;
+  int i;
+  ssize_t nsend, ntotal = 0;
   
   bool ret = false;
   bool fail = false;
   
+  // record start timestamp
+  gettimeofday(&timestamp, NULL);
+  
+  // start logging for the flow
+  if (logfp) {
+    fprintf(logfp, "\nSTART SEND %s:%s TIME %ld.%3.6ld FILE %s\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, tracefilepath);
+    fprintf(logfp, "SEQ,\t sent_bytes,\t sent_time\n");
+  }
+  
   while (fgets(line, 10, fp) != NULL) {
     
-    if ((max_flows != 0) && (flow_count == max_flows))
-      break;
-
+    //if ((max_flows != 0) && (flow_count == max_flows))
+    //  break;
+    
     // strip the line of asterisk if present (denotes "probe" packet)
     char *pos = NULL;
     if ((pos = strchr(line, '*')) != NULL) 
@@ -164,15 +305,44 @@ send_fromtrace(char *serv_ip, int serv_port, char *tracefilepath, int max_flows)
     if ( (probe != probe_prev) || (micros != micros_prev) ) {
       
       // this defines a different flow with "count" number of packets
-      if (probe_prev)
-	strcpy(cc_protocol, "cubic"); // the default cc protocol
-      else
-	strcpy(cc_protocol, "ccp");
+      //if (probe_prev)
+      //	strcpy(cc_protocol, "cubic"); // the default cc protocol
+      //else
+      //	strcpy(cc_protocol, "ccp");
       //strcpy(cc_protocol, "cubic");
       
-      flow_count += 1;
-	      
-      fail = send_const(serv_ip, serv_port, cc_protocol, count, probe_prev);
+      //flow_count += 1;
+      
+      //fail = send_const(serv_ip, serv_port, cc_protocol, count, probe_prev, bulk);
+      
+      // this defines a new block of data
+      block = new packet_t[count];
+      
+      seq++;
+      
+      gettimeofday(&timestamp, NULL);
+      
+      for (i = 0; i < count; i++) {
+	block[i].seq = seq;
+	block[i].seconds = timestamp.tv_sec;
+	block[i].micros = timestamp.tv_usec;
+	block[i].probe = probe_prev;
+      }
+      
+      // send all packets in one shot
+      if ((nsend = send(conn->sockfd, block, count * PACKET_SIZE, 0)) != (count * PACKET_SIZE)) {
+	// report problem
+	warn("send");
+	fail = true;
+      } else {
+	ntotal += nsend;
+	// log the send
+	if (logfp)
+	  fprintf(logfp, "%3.9u,\t %zd,\t %ld.%3.6ld\n", seq, nsend, timestamp.tv_sec, timestamp.tv_usec);
+      }
+      
+      delete block;
+      
       ret = (ret | fail);
       
       sleep_duration = micros - micros_prev;
@@ -189,6 +359,9 @@ send_fromtrace(char *serv_ip, int serv_port, char *tracefilepath, int max_flows)
     probe_prev = probe;
   }
   
+  gettimeofday(&timestamp, NULL);
+  fprintf(logfp, "END SEND %s:%s TIME %ld.%3.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
+  
   cout << "Done sending trace." << endl;
   
   fclose(fp);
@@ -197,93 +370,110 @@ send_fromtrace(char *serv_ip, int serv_port, char *tracefilepath, int max_flows)
 }
 
 
-
 int main(int argc, char** argv)
 {
-  struct sockaddr_in serv_addr;
-
   // commandline arguments
-  char serv_ip[256];
+  char *serv_ip;
   int serv_port;
-  char logfilename[256];
-  int max_flows = 0;
   
-  short genmethod = 0; // Shiva: method of generation of packets ("const" by default)
+  // options
+  send_mode mode;
+  mode.ttr = 10;
+  unsigned int blksize =   128; // in kibibytes (multiple of PACKET_SIZE)
+  char *cc_algo        =  NULL; // the cc algorithm to use
+  char *logfilepath    =  NULL; // path to log file (optional)
+  bool verbose         = false; // whether to show verbose output (log the output of sender)
 
-  // method 0: fixed number of packets
-  int num_packets;
-  bool probe;
-
-  // method 3: file
-  char *tracefilepath = NULL;
+  // Shiva: method of generation of packets ("const" by default)
+  int genmethod = 0;
   
-  // we have been using only the "--type file" option so far
+  // parse the commandline arguments and options
+  int opt;
   char usage_str[200];
-  sprintf(usage_str, "Usage: %s <server IP> <port> <logfilename> --type {const <num_packets> <probe_mode> | file <filepath>} [--maxflows <max_flows>]\n", argv[0]);
+  sprintf(usage_str, "Usage: %s [-t ttr / -n n_blks / -f tracefilepath] [-b blksize] [-C cc_algo] [-l logfilepath] [-v] SERVER_IP SERVER_PORT\n", argv[0]);
   
-  // Shiva: additional options for determining the manner of
-  // generation of packets
-  if ((argc != 8) && (argc != 9) && (argc != 10) && (argc != 11)) {
-    puts(usage_str);
-    exit(0);
-  }
-  
-  // parse all commandline options
-  sprintf(serv_ip, "%s", argv[1]);
-  serv_port = atoi(argv[2]);
-  sprintf(logfilename, "./%s", argv[3]);
-  
-  if (strcmp(argv[4], "--type") == 0) {
-    if (strcmp(argv[5], "const") == 0) {
-      num_packets = atoi(argv[6]);
-      probe = bool(atoi(argv[7]));
-      genmethod = 0;
-    } else if (strcmp(argv[5], "file") == 0) {
-      tracefilepath = argv[6];
-      genmethod = 3;
-    } else {
-      puts(usage_str);
-      exit(0);
+  while ((opt = getopt(argc, argv, "t:n:f:b:C:l:v")) != -1) {
+    switch (opt) {
+    case 't':
+    case 'n':
+    case 'f':
+      if (genmethod == 0) {
+	genmethod = opt;
+	if (opt == 't')
+	  mode.ttr = atoi(optarg);
+	else if (opt == 'n')
+	  mode.n_blocks = atoi(optarg);
+	else
+	  mode.tracefilepath = optarg;
+      } else {
+	cerr << "Only one of \'-t\', \'-n\' and \'-f\' is allowed." << endl;
+	cerr << usage_str << endl;
+	exit(EXIT_FAILURE);
+      }
+      break;
+    case 'b':
+      blksize = atoi(optarg);
+      if (blksize < 1) {
+	cerr << "Block size (-b option) has to be > 1." << endl;
+	exit(EXIT_FAILURE);
+      }
+      break;
+    case 'C':
+      cc_algo = optarg;
+      break;
+    case 'l':
+      logfilepath = optarg;
+      // open log file
+      if (!(logfp = fopen(logfilepath, "w"))) {
+	cerr << "Unable to access " << logfilepath << "." << endl;
+	exit(EXIT_FAILURE);
+      }
+      break;
+    case 'v':
+      verbose = true;
+      break;
+    default:
+      cerr << usage_str << endl;
+      exit(EXIT_FAILURE);
     }
-  } else {
-    puts(usage_str);
-    exit(0);
   }
-
-  if ((argc == 10) || (argc == 11)) {
-    if (strcmp(argv[argc-2], "--maxflows") != 0) {
-      puts(usage_str);
-      exit(0);
-    }
-    if ((max_flows = atoi(argv[argc-1])) < 0)
-      max_flows = 0;
-  }
-
-  cout << "Packet size: " << sizeof(packet_t) << endl;
-  cout << "Max flows: " << max_flows << endl;
   
-  // open log file
-  logfp = fopen(logfilename, "w");
+  // finally, get the mandatory arguments
+  if (optind != argc-2) {
+    cerr << "Two mandatory arguments expected: server IP address and server port." << endl;
+    cerr << usage_str << endl;
+    exit(EXIT_FAILURE);
+  }
+  
+  serv_ip = argv[optind];
+  serv_port = atoi(argv[optind+1]);
+  
+  // set up connections
+  struct tcp_conn conn;
+  
+  if (setup_tcp_connection(serv_ip, serv_port, cc_algo, &conn) != 0) {
+    cerr << "setup_tcp_connection() failed!" << endl;
+    exit(EXIT_FAILURE);
+  }
   
   // choose input sending method based on options
-  if (genmethod == 0) {
-    
-    char tcp_cc[10];
-    if (probe)
-      strcpy(tcp_cc, "cubic");
-    else
-      strcpy(tcp_cc, "ccp");
-    //strcpy(tcp_cc, "cubic");
-    
-    if (send_const(serv_ip, serv_port, tcp_cc, num_packets, probe) != 0) 
-      fprintf(stderr, "ABNORMAL TERMINATION: Something went wrong in send_const\n");
-  }
-  else if (genmethod == 3) {
-    if (send_fromtrace(serv_ip, serv_port, tracefilepath, max_flows) != 0)
-      fprintf(stderr, "ABNORMAL TERMINATION: Something went wrong in send_fromtrace\n");
+  if (genmethod == 'n') {
+    if (send_nblocks(&conn, mode.n_blocks, blksize, 0) != 0) 
+      cerr << "ABNORMAL TERMINATION: Something went wrong in send_nblocks()" << endl;
+  } else if (genmethod == 'f') {
+    if (send_fromtrace(&conn, mode.tracefilepath) != 0)
+      cerr << "ABNORMAL TERMINATION: Something went wrong in send_fromtrace()" << endl;
+  } else {
+    // the default option in case no other sending mode is specified
+    if (send_ttr(&conn, mode.ttr, blksize, 0) != 0)
+      cerr << "ABNORMAL TERMINATION: Something went wrong in send_ttr()" << endl;
   }
   
-  fclose(logfp);
+  // finally, close connection
+  close(conn.sockfd);
+  
+  if (logfp)
+    fclose(logfp);
   
   return 0;
 }
