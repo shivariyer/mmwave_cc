@@ -84,7 +84,7 @@ int main(int argc, char**argv)
   // should we log packets on the receiver side?
   bool log = false;
   
-  float delay;
+  //float delay;
   struct sockaddr_in bind_addr;
   struct sockaddr_in client_addr;
   socklen_t client_addr_len;
@@ -242,27 +242,58 @@ int main(int argc, char**argv)
 	fp = fopen(filename, "w");
       }
       
-      ssize_t nrecv, ntotal = 0;
-      
       // tcp flow started
       if (log) {
 	gettimeofday(&cur_time, NULL);
 	fprintf(fp, "\nSTART FLOW from %s:%s at TIME %ld.%3.6ld\n", host, service, cur_time.tv_sec, cur_time.tv_usec);
 	fprintf(fp, "SEQ, recv_bytes, recv_time, sent_time, delay_s\n");
       }
-
+      
       if (verbose)
 	cout << proc_prefix << "Flow has started." << endl;
+      
+      unsigned int seq = 1;
+      unsigned int seq_count = 0;
+      struct timeval sent_time, recv_time, delay;
+      ssize_t nrecv, ntotal = 0;
       
       // receive data from user (MSG_WAITALL ensures that all the data
       // is read even if the process is INTerrupted)
       while ((nrecv = recv(sockfd_client, &pdu_data, PACKET_SIZE, MSG_WAITALL)) > 0) {
 	//cout << proc_prefix << "Received a packet" << endl;
+	
+	// // log each packet
+	// if (log) {
+	//   ntotal += nrecv;
+	//   gettimeofday(&cur_time,NULL);
+	//   delay = (cur_time.tv_sec - pdu_data.seconds) + (cur_time.tv_usec - pdu_data.micros) / 1e6;
+	//   fprintf(fp, "%3.9u, %zd, %ld.%3.6ld, %ld.%3.6ld, %f\n", pdu_data.seq, nrecv, cur_time.tv_sec, cur_time.tv_usec, pdu_data.seconds, pdu_data.micros, delay);
+	// }
+	
+	// log each block instead
 	if (log) {
+	  // record when this packet is received
+	  gettimeofday(&recv_time, NULL);
 	  ntotal += nrecv;
-	  gettimeofday(&cur_time,NULL);
-	  delay = (cur_time.tv_sec - pdu_data.seconds) + (cur_time.tv_usec - pdu_data.micros) / 1e6;
-	  fprintf(fp, "%3.9u, %zd, %ld.%3.6ld, %ld.%3.6ld, %f\n", pdu_data.seq, nrecv, cur_time.tv_sec, cur_time.tv_usec, pdu_data.seconds, pdu_data.micros, delay);
+	  
+	  // WARNING: we assume that seq numbers start at 1 (sent_time
+	  // is uninitialized when the first ever packet is received,
+	  // so if the following condition is true for the very first
+	  // packet, then that log line will have undefined values)
+	  
+	  if (pdu_data.seq > seq) {
+	    // delay is computed using recorded sent_time and
+	    // recv_time for last packet of previous block (seq)
+	    timeval_subtract(&delay, &recv_time, &sent_time);
+	    fprintf(fp, "%3.9u, %zu, %ld.%3.6ld, %ld.%3.6ld, %f\n", seq, seq_count * PACKET_SIZE, recv_time.tv_sec, recv_time.tv_usec, sent_time.tv_sec, sent_time.tv_usec, (delay.tv_sec + (delay.tv_usec * 1e-6)));
+	    
+	    // reset seq counter
+	    seq = pdu_data.seq;
+	    seq_count = 1;
+	  } else seq_count++;
+	  
+	  sent_time.tv_sec = pdu_data.seconds;
+	  sent_time.tv_usec = pdu_data.micros;
 	}
       }
       
@@ -273,6 +304,10 @@ int main(int argc, char**argv)
       
       // tcp flow ended
       if (log) {
+	// log the last block (boundary condition)
+	timeval_subtract(&delay, &recv_time, &sent_time);
+	fprintf(fp, "%3.9u, %zu, %ld.%3.6ld, %ld.%3.6ld, %f\n", seq, seq_count * PACKET_SIZE, recv_time.tv_sec, recv_time.tv_usec, sent_time.tv_sec, sent_time.tv_usec, (delay.tv_sec + (delay.tv_usec * 1e-6)));
+	
 	gettimeofday(&cur_time, NULL);
 	fprintf(fp, "END FLOW from %s:%s at TIME %ld.%3.6ld, BYTES %zd\n", host, service, cur_time.tv_sec, cur_time.tv_usec, ntotal);
 	fflush(fp);
@@ -304,7 +339,7 @@ int main(int argc, char**argv)
   while ( (pid = waitpid(-1, &stat, 0)) > 0 )
     if (verbose)
       cout << proc_prefix << "Server child " << pid << " has terminated." << endl;
-  
+    
   if (verbose) 
     cout << proc_prefix << "Stopping the server ..." << endl;
   close(sockfd);
