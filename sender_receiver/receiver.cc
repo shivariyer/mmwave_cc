@@ -246,8 +246,8 @@ int main(int argc, char**argv)
       // tcp flow started
       if (log) {
 	gettimeofday(&cur_time, NULL);
-	fprintf(fp, "\nSTART FLOW from %s:%s at TIME %ld.%3.6ld\n", host, service, cur_time.tv_sec, cur_time.tv_usec);
-	fprintf(fp, "SEQ, recv_bytes, recv_time, sent_time, delay_s\n");
+	fprintf(fp, "\nSTART FLOW from %s:%s at TIME %ld.%.6ld\n", host, service, cur_time.tv_sec, cur_time.tv_usec);
+	fprintf(fp, "%9s, %11s, %18s, %18s, %9s\n", "SEQ", "recv_bytes", "recv_time", "sent_time", "delay_s");
       }
       
       if (verbose)
@@ -286,8 +286,8 @@ int main(int argc, char**argv)
 	    // delay is computed using recorded sent_time and
 	    // recv_time for last packet of previous block (seq)
 	    timeval_subtract(&delay, &recv_time, &sent_time);
-	    fprintf(fp, "%3.9u, %zu, %ld.%3.6ld, %ld.%3.6ld, %f\n", seq, seq_count * PACKET_SIZE, recv_time.tv_sec, recv_time.tv_usec, sent_time.tv_sec, sent_time.tv_usec, (delay.tv_sec + (delay.tv_usec * 1e-6)));
-	    
+	    //fprintf(fp, "%3.9u, %zu, %ld.%3.6ld, %ld.%3.6ld, %f\n", seq, seq_count * PACKET_SIZE, recv_time.tv_sec, recv_time.tv_usec, sent_time.tv_sec, sent_time.tv_usec, (delay.tv_sec + (delay.tv_usec * 1e-6)));
+	    fprintf(fp, "%09u, %11zu, %11ld.%.6ld, %11ld.%.6ld, %9.6f\n", seq, seq_count * PACKET_SIZE, recv_time.tv_sec, recv_time.tv_usec, sent_time.tv_sec, sent_time.tv_usec, (delay.tv_sec + (delay.tv_usec * 1e-6)));	    
 	    // reset seq counter
 	    seq = pdu_data.seq;
 	    seq_count = 1;
@@ -307,10 +307,11 @@ int main(int argc, char**argv)
       if (log) {
 	// log the last block (boundary condition)
 	timeval_subtract(&delay, &recv_time, &sent_time);
-	fprintf(fp, "%3.9u, %zu, %ld.%3.6ld, %ld.%3.6ld, %f\n", seq, seq_count * PACKET_SIZE, recv_time.tv_sec, recv_time.tv_usec, sent_time.tv_sec, sent_time.tv_usec, (delay.tv_sec + (delay.tv_usec * 1e-6)));
+	//fprintf(fp, "%3.9u, %zu, %ld.%3.6ld, %ld.%3.6ld, %f\n", seq, seq_count * PACKET_SIZE, recv_time.tv_sec, recv_time.tv_usec, sent_time.tv_sec, sent_time.tv_usec, (delay.tv_sec + (delay.tv_usec * 1e-6)));
+	fprintf(fp, "%09u, %11zu, %11ld.%.6ld, %11ld.%.6ld, %9.6f\n", seq, seq_count * PACKET_SIZE, recv_time.tv_sec, recv_time.tv_usec, sent_time.tv_sec, sent_time.tv_usec, (delay.tv_sec + (delay.tv_usec * 1e-6)));
 	
 	gettimeofday(&cur_time, NULL);
-	fprintf(fp, "END FLOW from %s:%s at TIME %ld.%3.6ld, BYTES %zd\n", host, service, cur_time.tv_sec, cur_time.tv_usec, ntotal);
+	fprintf(fp, "END FLOW from %s:%s at TIME %ld.%.6ld, BYTES %zd\n", host, service, cur_time.tv_sec, cur_time.tv_usec, ntotal);
 	fflush(fp);
       }
       
