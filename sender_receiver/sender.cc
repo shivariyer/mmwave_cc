@@ -112,6 +112,31 @@ setup_tcp_connection(char *serv_ip, int serv_port, char *cc_protocol, struct tcp
 }
 
 
+/* print total bytes transferred, rounded to KiB or MiB or GiB as
+   appropriate */
+void print_bytes_nice(long ntotal) {
+  
+  float ntotal_nice;
+  long kibi = 1024;
+  char unit[4] = "B";
+  
+  if (ntotal < kibi) 
+    ntotal_nice = ntotal;
+  else if (ntotal < (kibi << 10)) {
+    ntotal_nice = float(ntotal) / kibi;
+    strcpy(unit, "KiB");
+  } else if (ntotal < (kibi << 20)) {
+    ntotal_nice = float(ntotal) / (kibi << 10);
+    strcpy(unit, "MiB");
+  } else if (ntotal < (kibi << 30)) {
+    ntotal_nice = float(ntotal) / (kibi << 20);
+    strcpy(unit, "GiB");
+  }
+  
+  cout << "Transferred a total of " << ntotal_nice << " " << unit << endl;
+}
+
+
 /* send_ttr: keep sending a block of packets for 'ttr' seconds. */
 int
 send_ttr(struct tcp_conn *conn, unsigned int ttr, unsigned int blksize, bool probe) {
@@ -168,6 +193,8 @@ send_ttr(struct tcp_conn *conn, unsigned int ttr, unsigned int blksize, bool pro
   // end tcp flow
   //gettimeofday(&timestamp, NULL);
   fprintf(logfp, "END SEND %s:%s TIME %ld.%.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
+  
+  print_bytes_nice((long) ntotal);
   
   // close the connection and the socket
   // close(sockfd);
@@ -228,6 +255,8 @@ send_nblocks(struct tcp_conn *conn, int n_blocks, unsigned int blksize, bool pro
   // end tcp flow
   gettimeofday(&timestamp, NULL);
   fprintf(logfp, "END SEND %s:%s TIME %ld.%.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
+  
+  print_bytes_nice((long) ntotal);
   
   // close the connection and the socket
   // close(sockfd);
@@ -362,6 +391,8 @@ send_fromtrace(struct tcp_conn *conn, char *tracefilepath) {
   gettimeofday(&timestamp, NULL);
   fprintf(logfp, "END SEND %s:%s TIME %ld.%.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
   
+  print_bytes_nice((long) ntotal);
+  
   cout << "Done sending trace." << endl;
   
   fclose(fp);
@@ -383,7 +414,7 @@ int main(int argc, char** argv)
   char *cc_algo        =  NULL; // the cc algorithm to use
   char *logfilepath    =  NULL; // path to log file (optional)
   bool verbose         = false; // whether to show verbose output (log the output of sender)
-
+  
   // Shiva: method of generation of packets ("const" by default)
   int genmethod = 0;
   
