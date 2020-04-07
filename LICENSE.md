@@ -1,6 +1,12 @@
 # MIT License
 
-Copyright (c) 2020 Shiva R Iyer
+## Authors
+
+NYU NEBULA Team: Shiva R. Iyer, Lakshmi Subramanian, Yasir Zaki, Talal Ahmad
+
+## License
+
+Copyright (c) 2020, NYU NEBULA Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
