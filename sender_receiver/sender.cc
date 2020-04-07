@@ -397,7 +397,7 @@ send_fromtrace(struct tcp_conn *conn, char *tracefilepath) {
   
   fclose(fp);
   
-  return int(fail);
+  return int(ret);
 }
 
 
