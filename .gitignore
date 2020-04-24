@@ -5,6 +5,9 @@ __pycache__
 # directories
 /output
 /results
+/analysis
+/datasets
+/figures
 
 # executable files
 sender_receiver/sender
@@ -13,3 +16,7 @@ sender_receiver/receiver
 # files
 *.log
 *.trace 
+test*
+ws_*
+wireshark_*
+tshark_*
