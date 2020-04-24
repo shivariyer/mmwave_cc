@@ -1,6 +1,6 @@
 
 #ifndef _CHANNEL_H
-#define _CHANNEL_H 
+#define _CHANNEL_H
 
 #include <err.h>
 #include <time.h>
@@ -20,11 +20,19 @@
 #include <sys/socket.h>
 #include <iostream>
 
-#define PACKET_SIZE  (size_t) 1024
+#include <cstdio>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <array>
+#include <regex>
+#include <fstream>
 
-#define PAYLOAD_LEN  PACKET_SIZE - sizeof(unsigned int) - sizeof(time_t) - sizeof(long) - (size_t) 1
+#define PACKET_SIZE (size_t)1024
 
-#define LISTENQ      1024
+#define PAYLOAD_LEN PACKET_SIZE - sizeof(unsigned int) - sizeof(time_t) - sizeof(long) - (size_t)1
+
+#define LISTENQ 1024
 
 /****************************
 
@@ -49,20 +57,22 @@ struct sockaddr_in {
 
 *****************************/
 
-typedef struct __attribute__((packed, aligned(2))) {
-  unsigned int seq;		// seq number of packet
-  time_t seconds;		// timestamp (seconds)
-  long micros;			// timestamp (microseconds)
-  bool probe;			// whether this a probe packet or bg traffic packet
-  char buf[PAYLOAD_LEN];	// payload
+typedef struct __attribute__((packed, aligned(2)))
+{
+  unsigned int seq;      // seq number of packet
+  time_t seconds;        // timestamp (seconds)
+  long micros;           // timestamp (microseconds)
+  bool probe;            // whether this a probe packet or bg traffic packet
+  char buf[PAYLOAD_LEN]; // payload
 } packet_t;
 
-typedef struct __attribute__((packed, aligned(2))) {
-  unsigned int seq;		// seq number of packet
-  time_t seconds;		// timestamp (seconds)
-  long micros;			// timestamp (microseconds)
-  bool probe;	                // whether this a probe packet or bg traffic packet
-  double iat;	                // time elapsed between last two packets ("iat")
+typedef struct __attribute__((packed, aligned(2)))
+{
+  unsigned int seq; // seq number of packet
+  time_t seconds;   // timestamp (seconds)
+  long micros;      // timestamp (microseconds)
+  bool probe;       // whether this a probe packet or bg traffic packet
+  double iat;       // time elapsed between last two packets ("iat")
 } ack_t;
 
 #endif

@@ -254,7 +254,8 @@ if __name__ == '__main__':
     
     megroup.add_argument('--ttr', '-t', metavar='DURATION_SEC', 
                          help='Duration to run the experiment (seconds)',
-                         default=Simulation.TTR_DEFAULT)
+                         default=Simulation.TTR_DEFAULT
+                         )
     
     megroup.add_argument('--n-blocks', '-n', metavar='NUM_BLOCKS',
                          help='Number of blocks to send')
@@ -275,7 +276,7 @@ if __name__ == '__main__':
     
     parser.add_argument('--iperf', action='store_true',
                         help='Use iperf for the test',
-                        default=False)
+                        default=True)
 
     # runtime options
     parser.add_argument('--dir', '-d', 

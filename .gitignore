@@ -20,3 +20,6 @@ test*
 ws_*
 wireshark_*
 tshark_*
+original*
+maked_script.sh
+plot_script.sh
