@@ -447,13 +447,13 @@ string system_get_output(const char *cmd)
   return result;
 }
 
-//TODO allow get interface to fetch loss or delay as well (i.e. let user specify the interface)
 /**
- * Returns: mahimahi link interface name
+ * Param: Input either link, delay, or loss depending on what mahimahi interface you are using
+ * Returns: full mahimahi interface name
  * This may not return the interface you want if there are multiple 
- * mahimahi link interfaces.
+ * mahimahi interfaces running.
  */
-string get_interface()
+string get_interface(string interface_name)
 {
 
   //ifconfig contains all interface names
@@ -461,7 +461,7 @@ string get_interface()
   string cmd_result = system_get_output(cmd);
 
   smatch m;
-  string regex_str = "link-[0-9]+";
+  string regex_str = interface_name + "-[0-9]+";
   regex re(regex_str);
 
   if (regex_search(cmd_result, m, re) == 0)
@@ -470,51 +470,78 @@ string get_interface()
   }
 
   string interface;
-  for (auto x : m)
+  for (auto name : m)
   {
-    interface = x;
+    interface = name;
     break;
   }
 
   return interface;
 }
 
+//this function will string together the fields specified by
+//a preference file for tshark.
+string get_fields()
+{
+  vector<string> fields = {
+      "frame.number",
+      "frame.time_relative",
+      "ip.src",
+      "ip.dst",
+      "_ws.col.Protocol",
+      "tcp.seq",
+      "tcp.nxtseq",
+      "tcp.ack",
+      "tcp.len",
+      "tcp.analysis.acks_frame",
+      "tcp.analysis.ack_rtt"
+      //"_ws.col.Info"
+  };
+
+  string result = " -T fields";
+  for (string field : fields)
+  {
+    result = result + " -e " + field;
+  }
+
+  return result + " ";
+}
+
+//TODO change name of outfile to match current trace
 int run_tshark()
 {
   //get interface name from ifconfig
   //run wireshark with interface and output to file
   string outfile = "wireshark_out";
-  string interface = get_interface();
-  string filter = "tcp";
+  string interface = " -i " + get_interface("link") + " ";
+  string fields = get_fields();
+  string filter = " -f tcp ";
+  string output_pcap = " -w tshark_capture ";
+  string output_text = " > output/tshark_outfile.txt";
 
   //string temp = format("wireshark -i {} -f {} -w {} -k", interface, filter, outfile);
-  //string temp = "tshark -i " + interface + " -f " + filter + " -w " + outfile + " &";
-  string temp = "tshark -i " + interface + " -f " + filter + " -w tshark_special_file"; // + " > tshark_outfile.txt";
+  string temp2 = "tshark -i " + interface + " -f " + filter + " -w tshark_special_file"; // + " > tshark_outfile.txt";
+  string temp = "tshark" + interface + filter + fields + output_text;
   //need to convert to const char for system() function
   const char *ws_cmd = temp.c_str();
-
+  system(ws_cmd);
+  /*
   string tshark_result = system_get_output(ws_cmd);
-
+  
   ofstream output_file;
   output_file.open("tshark_outfile.txt");
   output_file << tshark_result;
   output_file.close();
-
+  */
   return 0;
 }
 
-int close_wireshark()
+//If you want to do anything related to tshark closing do it here
+int close_tshark()
 {
-  //save file if need be
-  //close wireshark through system
-  return 0;
-}
-
-int extract_ACK_from_file()
-{
-  //input: filename
-  //get the recv times for ACKs
-  return 0;
+  //close tshark through system
+  int retval = system("pkill tshark");
+  return retval;
 }
 
 int main(int argc, char **argv)
@@ -618,6 +645,7 @@ int main(int argc, char **argv)
   if (pid == 0)
   {
     cout << "lets print something 2" << endl;
+    //give tshark a chance to get up and running
     sleep(3);
     // choose input sending method based on options
     if (genmethod == 'n')
@@ -640,7 +668,7 @@ int main(int argc, char **argv)
     // finally, close connection
     close(conn.sockfd);
     sleep(.5);
-    system("pkill tshark");
+    close_tshark();
   }
   else
   {
