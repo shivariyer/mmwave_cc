@@ -1,0 +1,12 @@
+fields : 
+    frame.number,
+    frame.time_relative,
+    ip.src,
+    ip.dst,
+    _ws.col.Protocol,
+    tcp.seq,
+    tcp.nxtseq,
+    tcp.ack,
+    tcp.len,
+    tcp.analysis.acks_frame,
+    tcp.analysis.ack_rtt
