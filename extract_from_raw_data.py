@@ -1,5 +1,6 @@
 import math
 import logging
+import os
 from tqdm import tqdm
 
 
@@ -34,38 +35,13 @@ class Packet:
         return self.get_delay1() + self.get_delay2()
 
 
-def get_pref(preference):
-    pref_file = open('tshark_config/preferences')
-    pref_list = []
-    found_pref = False
-    properly_ended = False
-    for line in pref_file:
-
-        if not found_pref:
-            split_line = line.split(':')[0].strip()
-            if split_line == preference:
-                found_pref = True
-        else:
-            stripped_line = line.strip()
-
-            theres_more = False
-            if stripped_line[-1] == ',':
-                stripped_line = stripped_line[:-1]
-                theres_more = True
-
-            pref_list.append(stripped_line)
-
-            if not theres_more:
-                properly_ended = True
-                break
-
-    if found_pref and properly_ended:
-        return pref_list
-
-    print(f"Syntax Error in preferences file! Exiting... found_pref: {found_pref}, properly_ended: {properly_ended}")
-    quit()
-
-# The field name has to be the exact name that tshark uses
+def get_fields(tshark_file):
+    for line in tshark_file:
+        if line[-1] == '\n':
+            line = line[:-1]
+        fields_list = line.split(',')
+        break
+    return fields_list
 
 
 def get_index(name, some_list):
@@ -91,7 +67,7 @@ def create_packet_list(tshark_file):
     all_packets = []
 
     # Get indexes of required fields
-    fields = get_pref("fields")
+    fields = get_fields(tshark_file)
     frame_index = get_index("frame.number", fields)
     cap_time_index = get_index("frame.time_relative", fields)
     sender_ip_index = get_index("ip.src", fields)
@@ -103,25 +79,28 @@ def create_packet_list(tshark_file):
     acks_frame_index = get_index("tcp.analysis.acks_frame", fields)
     rtt_index = get_index("tcp.analysis.ack_rtt", fields)
 
+    # Note: the first line was already skipped in get_fields()
     for line in tshark_file:
-        raw_line = line.split()
+        if line[-1] == '\n':
+            line = line[:-1]
+        packet_data = line.split(',')
 
         packet = Packet(
-            frame_number=int(raw_line[frame_index]),
-            capture_time=float(raw_line[cap_time_index]),
-            sender_ip=raw_line[sender_ip_index],
-            recv_ip=raw_line[recv_ip_index],
-            seq=int(raw_line[seq_index]),
-            next_seq=int(raw_line[next_seq_index]),
-            ack=int(raw_line[ack_index]),
-            payload_size=int(raw_line[load_index])
+            frame_number=int(packet_data[frame_index]),
+            capture_time=float(packet_data[cap_time_index]),
+            sender_ip=packet_data[sender_ip_index],
+            recv_ip=packet_data[recv_ip_index],
+            seq=int(packet_data[seq_index]),
+            next_seq=int(packet_data[next_seq_index]),
+            ack=int(packet_data[ack_index]),
+            payload_size=int(packet_data[load_index])
         )
 
         if packet.payload_size == 0:
             # this is an ack packet
             try:
-                packet.acks_frame = int(raw_line[acks_frame_index])
-                packet.rtt = float(raw_line[rtt_index])
+                packet.acks_frame = int(packet_data[acks_frame_index])
+                packet.rtt = float(packet_data[rtt_index])
             except IndexError:
                 logging.warning(f"possible ack packet {packet.frame_number} does not contain acks_frame and rtt")
 
@@ -145,9 +124,13 @@ def extract():
     logging.basicConfig(filename="extract_errors.log", filemode='w',
                         format='%(name)s - %(levelname)s - %(message)s')
 
-    tshark_file = open("tshark_outfile.txt")
+    # first convert to text file
+    # os.system('tshark -r output/tshark_capture -w output/tshark_outfile.txt')
 
+    tshark_file = open("output/tshark_outfile.txt")
     packet_list = create_packet_list(tshark_file)
+    tshark_file.close()
+
     packet_list = get_and_set_rtts(packet_list)
 
     outfile = open("output/tracename_packet_info.log", 'w')
@@ -180,6 +163,8 @@ def extract():
             info_str = "  ".join(info_list)
             outfile.write(info_str + "\n")
             my_frame += 1
+
+    outfile.close()
 
 
 if __name__ == '__main__':
