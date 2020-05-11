@@ -104,46 +104,10 @@ if __name__ == '__main__':
 
     endtime_prev = 0
     for i in tqdm(range(2, len(packet_lines)-1)):
-        #seq, starttime, endtime, iat1, receivertime = packet_lines[i].strip().split(',')
-        # Receiver log head and tail -> START FLOW and END FLOW times for recv
-        # Recv log lines: seq, recv_bytes, recv_time, sent_time, delay_s
-        # Sender log head and tail -> START FLOW and END FLOW times for sender
-        # Sender log lines: seq*, sent_time
         my_frame, ts_frame, capture_time, payload_size, rtt, inter_sent_time = packet_lines[i].strip().split()
         packet_info[int(my_frame)] = (float(capture_time), float(rtt), float(inter_sent_time))
 
-        # if '*' in seq:
-        #     # iat1 and iat2 alone are in microseconds (since they are
-        #     # "differences"), all others are in seconds from epoch
-        #     if endtime_prev == 0:
-        #         endtime_prev = float(endtime)
-        #     else:
-        #         endtime = float(endtime)
-        #         iat2 = (endtime - endtime_prev) * 1e6
-        #         packet_info[int(seq[:-1])] = (float(starttime), endtime, float(iat1), float(receivertime), float(iat2))
-        #         endtime_prev = endtime
-
-        # seq, starttime = packet_lines[i].strip().split(',')
-        # endtime = float(starttime) + .005
-        # iat1 = .0035 + random.random()*.001
-        # receivertime = float(starttime) + .1 + random.random()*.2
-
-        # if '*' in seq:
-        #     if endtime_prev == 0:
-        #         endtime_prev = float(endtime)
-        #     else:
-        #         endtime = float(endtime)
-        #         iat2 = (endtime - endtime_prev) * 1e6
-        #         packet_info[int(seq[:-1])] = (float(starttime), endtime, float(iat1), float(receivertime), float(iat2))
-        #         endtime_prev = endtime
-
     print("calculating packet level delays")
-
-    # difference between user start and mahimahi start in the logs
-    #user_start_timestamp = float(packet_lines[1].split()[-1])
-    # henry
-    #user_start_timestamp = float(packet_lines[1].split()[-3])
-    #milli_difference = int(user_start_timestamp*1000) - mm_init_timestamp
 
     delay_per_pkt = []
 
