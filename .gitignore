@@ -8,6 +8,7 @@ __pycache__
 /analysis
 /datasets
 /figures
+/packet_dump
 
 # executable files
 sender_receiver/sender
@@ -19,7 +20,8 @@ sender_receiver/receiver
 test*
 ws_*
 wireshark_*
-tshark_*
 original*
 maked_script.sh
 plot_script.sh
+tshark_outfile.txt
+tshark_special_file

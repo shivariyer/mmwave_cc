@@ -24,6 +24,10 @@ qsize4=500000
 
 cong_algo=reno
 
+ttr=10
+
+nblocks=10
+
 let maxflows=1
 
 # single flow with constant no of packets
@@ -43,9 +47,12 @@ do
     	# queue size
 
     	# fanrunning (== fan_running5)
-    	echo python3 runmm.py $chtrace1 -d ${odir} -q $qsize1 --cc-algo $cong_algo --ttr 2 -v -v
-    	python3 runmm.py $chtrace1 -d ${odir} -q $qsize1 --cc-algo $cong_algo --ttr 2 -v -v
-		#python3 ${chtrace1}_const_${npkts}_${probe}_q${qsize1} -if $odir -of $adir -ff $fdir
+    	#echo python3 runmm.py $chtrace1 -d ${odir} -q $qsize1 --cc-algo $cong_algo --ttr $ttr -v -v
+    	#python3 runmm.py $chtrace1 -d ${odir} -q $qsize1 --cc-algo $cong_algo --ttr $ttr -v -v
+
+		# fanrunning (== fan_running5)
+    	echo python3 runmm.py $chtrace1 -d ${odir} -q $qsize1 --cc-algo $cong_algo -n $nblocks -v -v
+    	python3 runmm.py $chtrace1 -d ${odir} -q $qsize1 --cc-algo $cong_algo -n $nblocks -v -v
 	
     	# # humanmotion (== still_on_the_table_with_hands2)
     	# echo python3 runmm.py $chtrace2 -d ${odir} -q $qsize2 --cc-algo $cong_algo

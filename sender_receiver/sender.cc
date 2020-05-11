@@ -498,7 +498,7 @@ string get_fields()
       //"_ws.col.Info"
   };
 
-  string result = " -T fields";
+  string result = " -T fields -E header=y -E separator=,";
   for (string field : fields)
   {
     result = result + " -e " + field;
@@ -516,8 +516,9 @@ int run_tshark()
   string interface = " -i " + get_interface("link") + " ";
   string fields = get_fields();
   string filter = " -f tcp ";
-  string output_pcap = " -w tshark_capture ";
-  string output_text = " > output/tshark_outfile.txt";
+  string output_pcapng = " -w output/tshark_capture ";
+  string output_text = " > output/tshark_outfile.txt ";
+  string additional_flags = " -q ";
 
   //string temp = format("wireshark -i {} -f {} -w {} -k", interface, filter, outfile);
   string temp2 = "tshark -i " + interface + " -f " + filter + " -w tshark_special_file"; // + " > tshark_outfile.txt";
