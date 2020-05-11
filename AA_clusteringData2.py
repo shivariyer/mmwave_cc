@@ -59,7 +59,7 @@ Npkts = [1]
 #            (1, 0, 1, 0),
 #            (0, 1, 0, 1),
 #            (1, 0, 0, 1)]
-Weights = [(1, 1, 1, 1)]
+Weights = [(1, 1)]
 
 # datasets2 folder is for recording capacity
 inFolder = './datasets'
@@ -78,32 +78,39 @@ emulTime = 60
 sigmas = [np.inf]
 
 # for selecting the input files
-spikes = [5, 10]
+#spikes = [5, 10]
+spikes = [1]
 traces = [
-  # {
-  #   'name': 'fanrunning',
-  #   'ql': 400000
-  # }, 
-  # {
-  #   'name': 'stationary',
-  #   'ql': 500000
-  # }, 
   {
-    'name' : 'humanmotion',
-    'ql' : 300000
-  },
-  {
-    'name' : 'walkandturn',
-    'ql' : 500000
+    'name': 'fanrunning',
+    'ql': 400000
   }
 ]
+# traces = [
+#   # {
+#   #   'name': 'fanrunning',
+#   #   'ql': 400000
+#   # }, 
+#   # {
+#   #   'name': 'stationary',
+#   #   'ql': 500000
+#   # }, 
+#   {
+#     'name' : 'humanmotion',
+#     'ql' : 300000
+#   },
+#   {
+#     'name' : 'walkandturn',
+#     'ql' : 500000
+#   }
+# ]
 
 random_state = 1
 
 #kmeans_cluster = KMeans(n_clusters=2, random_state=random_state)
 
 def FindOutliers (data, m = 1): 
-  ncols = len(data[0])
+  ncols = len(data[0]) 
   f_std = []
   f_mean = []
   for i in range(0, ncols):
@@ -161,13 +168,12 @@ def GetData (traceName, ql, trrate, sp, npkts):
   #X = dataset[:, [0,1,3,4,6,7,9,10,12,13]]
   #Y = dataset[:, 14]
   #Cap = dataset[:, 15]
-  dataset.loc[:,['IAT1_tminus4', 'IAT1_tminus3', 'IAT1_tminus2', 'IAT1_tminus1', 'IAT1_tminus0', 
-                 'IAT2_tminus4', 'IAT2_tminus3', 'IAT2_tminus2', 'IAT2_tminus1', 'IAT2_tminus0']] /= 1e6
-  X = dataset[['RTT_tminus4', 'IAT1_tminus4', 'delay_tminus4', 'IAT2_tminus4', 
-               'RTT_tminus3', 'IAT1_tminus3', 'delay_tminus3', 'IAT2_tminus3', 
-               'RTT_tminus2', 'IAT1_tminus2', 'delay_tminus2', 'IAT2_tminus2', 
-               'RTT_tminus1', 'IAT1_tminus1', 'delay_tminus1', 'IAT2_tminus1', 
-               'RTT_tminus0', 'IAT1_tminus0', 'delay_tminus0', 'IAT2_tminus0']].values
+  dataset.loc[:,['IAT1_tminus4', 'IAT1_tminus3', 'IAT1_tminus2', 'IAT1_tminus1', 'IAT1_tminus0']] /= 1e6
+  X = dataset[['RTT_tminus4', 'IAT1_tminus4', 
+               'RTT_tminus3', 'IAT1_tminus3', 
+               'RTT_tminus2', 'IAT1_tminus2',
+               'RTT_tminus1', 'IAT1_tminus1', 
+               'RTT_tminus0', 'IAT1_tminus0']].values
   #Y = (dataset['Qfrac_tminus0'].values > thres)
   Y = (dataset['QfracCap_tminus0'].values > thres)
   Cap = dataset['Cap_tminus0'].values
@@ -236,11 +242,11 @@ def ChooseLabel (y_pred, Y):
 
 def DoCluster (name, ql, sp, npkts):
   
-  featuresS = np.asarray(['RTT-4', 'IAT1-4', 'D-4', 'IAT2-4',
-                          'RTT-3', 'IAT1-3', 'D-3', 'IAT2-3', 
-                          'RTT-2', 'IAT1-2', 'D-2', 'IAT2-2',
-                          'RTT-1', 'IAT1-1', 'D-1', 'IAT2-1',
-                          'RTT-0', 'IAT1-0', 'D-0', 'IAT2-0'])
+  featuresS = np.asarray(['RTT-4', 'IAT1-4',
+                          'RTT-3', 'IAT1-3', 
+                          'RTT-2', 'IAT1-2',
+                          'RTT-1', 'IAT1-1',
+                          'RTT-0', 'IAT1-0'])
   
   for trIdx in range(len(TrafficRates)):
     X, Y, Cap  = GetData(name, ql, TrafficRates[trIdx], sp, npkts)
@@ -257,7 +263,10 @@ def DoCluster (name, ql, sp, npkts):
         # else:
         #   raise Exception('fset needs to be \'1\' or \'2\' only')
         cols = wss.astype(bool)
-        cols[:4*(histlen_MAX - h)] = False
+        # henry: I believe this ought be a function of the number of parameters in weights
+        # was not working when hard coded as 4 * ...
+        params_in_weights = len(Weights[0])
+        cols[:params_in_weights*(histlen_MAX - h)] = False
         features = featuresS[cols]
         ws = wss[cols].astype(float)
         ws /= ws.sum()
@@ -269,9 +278,10 @@ def DoCluster (name, ql, sp, npkts):
           log.info ("=== Trace {} Spikes {} Pkts {} --- Rate {} Weight {} History {} SigmaFactor {} ===".format(name, sp, npkts, TrafficRates[trIdx], w, h, sigma))
           
           s = 'INF' if np.isinf(sigma) else str(sigma)
-          
+
           data, auxY, auxCap = FilterData (data, Y, Cap, sigma)
           #data, auxY = FilterData (data, Y, sigma)
+
           data = ShapeData (data, ws)  
 
           model = mixture.GaussianMixture(n_components=2, verbose=1)
