@@ -76,7 +76,6 @@ if __name__ == '__main__':
     # create a clear file from the raw data which pairs
     # together all RTTs and inter_sent_times for every packet
     # this produces the tracename_packet_info.log file
-    # TODO change to import + function call
     extract_data.extract()
 
     # parse mm log file and get the queue size, capacity info at every
@@ -103,9 +102,9 @@ if __name__ == '__main__':
     packet_info = {}
 
     endtime_prev = 0
-    for i in tqdm(range(2, len(packet_lines)-1)):
-        my_frame, ts_frame, capture_time, payload_size, rtt, inter_sent_time = packet_lines[i].strip().split()
-        packet_info[int(my_frame)] = (float(capture_time), float(rtt), float(inter_sent_time))
+    for i in tqdm(range(1, len(packet_lines)-1)):
+        my_frame, ts_frame, epoch_time, capture_time, payload_size, rtt, inter_sent_time = packet_lines[i].strip().split()
+        packet_info[int(my_frame)] = (float(epoch_time), float(capture_time), float(rtt), float(inter_sent_time))
 
     print("calculating packet level delays")
 
@@ -114,24 +113,27 @@ if __name__ == '__main__':
     for my_frame in tqdm(packet_info.keys()):
         # time elapsed since user start, rounded to
         # milliseconds
-        time_tick_rel = int(packet_info[my_frame][0]*1000)
+        if my_frame == 1:
+            user_start_timestamp = packet_info[my_frame][0]
+
+        time_tick_rel = int(packet_info[my_frame][1]*1000)
 
         # better than int(packet_info[my_frame]*1000) because otherwise
         # time_tick and time_tick_unix do not have one-to-one mapping
         #time_tick_unix = int(user_start_timestamp*1000) + time_tick
-        time_tick_unix = 0
+        time_tick_unix = int(user_start_timestamp * 1000) + time_tick_rel
 
         # all three quantities below are in seconds
-        rtt = packet_info[my_frame][1]
-        iat1 = packet_info[my_frame][2]
+        rtt = packet_info[my_frame][2]
+        iat1 = packet_info[my_frame][3]
         #onewaydelay = packet_info[my_frame][3] - packet_info[my_frame][0]
         #iat2 = packet_info[my_frame][4]
-        delay_per_pkt.append((my_frame, time_tick_rel, rtt, iat1))
+        delay_per_pkt.append((my_frame, time_tick_unix, rtt, iat1))
 
     df_pktdelays = pd.DataFrame(data=delay_per_pkt,
-                                columns=('my_frame_no', 'elapsed_user_time_ms', 'RTT_s', 'IAT1_us'))
+                                columns=('my_frame_no', 'unix_time_ms', 'RTT_s', 'IAT1_us'))
     df_pktdelays.set_index(
-        keys=['elapsed_user_time_ms', 'my_frame_no'], inplace=True)
+        keys=['unix_time_ms', 'my_frame_no'], inplace=True)
     df_pktdelays.sort_index(level=0, inplace=True)
 
     rtts = df_pktdelays.RTT_s.values
@@ -153,7 +155,6 @@ if __name__ == '__main__':
 
     # (2) ecn based on the dynamically varying channel capacity
     # q_cap = capacity * onewaydelays.mean() # <-- THIS IS WRONG!
-    print(f"############ {capacity} #################")
     cm_bit_cap = (mmqsize_bytes >= capacity)
     qfrac_cap = (mmqsize_bytes / capacity.astype(float))
 
@@ -179,7 +180,7 @@ if __name__ == '__main__':
     # dtype=np.int32)
 
     # compute average delay every millisecond
-    df_avgdelays = df_pktdelays.groupby('elapsed_user_time_ms').mean()
+    df_avgdelays = df_pktdelays.groupby('unix_time_ms').mean()
 
     # common index to align to
     masterindex_start = min(df_avgdelays.index[0], df_mmcongestion.index[0])
@@ -188,7 +189,7 @@ if __name__ == '__main__':
     masterindex_end = min(df_avgdelays.index[-1], df_mmcongestion.index[-1])
 
     newindex = pd.RangeIndex(
-        masterindex_start, masterindex_end+1, name='elapsed_user_time_ms')
+        masterindex_start, masterindex_end+1, name='unix_time_ms')
 
     df_mmcongestion = df_mmcongestion.reindex(newindex, axis=0, copy=False)
     df_avgdelays = df_avgdelays.reindex(newindex, axis=0, copy=False)

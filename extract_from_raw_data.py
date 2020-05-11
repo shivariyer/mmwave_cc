@@ -1,13 +1,15 @@
 import math
 import logging
 import os
+import sys
 from tqdm import tqdm
 
 
 class Packet:
-    def __init__(self, frame_number, capture_time, sender_ip, recv_ip, seq, ack, next_seq, payload_size):
+    def __init__(self, frame_number, capture_time, epoch_time, sender_ip, recv_ip, seq, ack, next_seq, payload_size):
         self.frame_number = frame_number
         self.capture_time = capture_time
+        self.epoch_time = epoch_time
         self.sender_ip = sender_ip  # not currently used
         self.recv_ip = recv_ip  # not currently used
         self.seq = seq
@@ -50,7 +52,7 @@ def get_index(name, some_list):
     except ValueError:
         print(f"Could not find necessary field {name} in the column entries!")
         print("Make sure to include this field. Exiting...")
-        quit()
+        sys.exit(-1)
 
     return index
 
@@ -70,6 +72,7 @@ def create_packet_list(tshark_file):
     fields = get_fields(tshark_file)
     frame_index = get_index("frame.number", fields)
     cap_time_index = get_index("frame.time_relative", fields)
+    epoch_time_index = get_index("frame.time_epoch", fields)
     sender_ip_index = get_index("ip.src", fields)
     recv_ip_index = get_index("ip.dst", fields)
     seq_index = get_index("tcp.seq", fields)
@@ -88,6 +91,7 @@ def create_packet_list(tshark_file):
         packet = Packet(
             frame_number=int(packet_data[frame_index]),
             capture_time=float(packet_data[cap_time_index]),
+            epoch_time=float(packet_data[epoch_time_index]),
             sender_ip=packet_data[sender_ip_index],
             recv_ip=packet_data[recv_ip_index],
             seq=int(packet_data[seq_index]),
@@ -155,6 +159,7 @@ def extract():
             info_list = [
                 f"{my_frame:06d}",
                 f"{packet.frame_number:06d}",
+                f"{packet.epoch_time:.9f}",
                 f"{packet.capture_time:.9f}",
                 f"{packet.payload_size:04d}",
                 f"{packet.rtt:.9f}",

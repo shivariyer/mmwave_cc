@@ -18,7 +18,7 @@ def prepare_dataset_join(df_input, df_output, nhist, nagg=1):
     df_joined.dropna(inplace=True) # remove rows that have NaNs
     df_joined.loc[np.isinf(df_joined.qfrac_cap.values), 'qfrac_cap'] = 0 # replace "inf"s with zeros
 
-    colnames_set = ['RTT_s', 'IAT1_us', 'delay_s', 'IAT2_us', 'qfrac', 'qfrac_cap', 'capacity']
+    colnames_set = ['RTT_s', 'IAT1_us', 'qfrac', 'qfrac_cap', 'capacity']
     
     nrows = df_joined.shape[0] - nhist
     ncols = len(colnames_set) * (nhist + 1)
@@ -34,7 +34,7 @@ def prepare_dataset_join(df_input, df_output, nhist, nagg=1):
     colnames_list = []
     for i in reversed(range(nhist+1)):
         suf = 'tminus{}'.format(i)
-        colnames_list.extend(['RTT_' + suf, 'IAT1_' + suf, 'delay_' + suf, 'IAT2_' + suf, 'Qfrac_' + suf, 'QfracCap_' + suf, 'Cap_' + suf])
+        colnames_list.extend(['RTT_' + suf, 'IAT1_' + suf, 'Qfrac_' + suf, 'QfracCap_' + suf, 'Cap_' + suf])
     dataset_df = pd.DataFrame(dataset, columns=colnames_list)
     
     return dataset_df
@@ -160,7 +160,7 @@ if __name__ == '__main__':
     
     # read in the outputs of plotqueuesize script required to prepare
     # the dataset
-    errormsg = 'Required file \"{}\" not present. Please run \"plotqueuesize.py\" with similar commandline arguments to generate it and then run this again.'
+    errormsg = 'Required file \"{}\" not present. Please run \"create_csvs_and_plot.py\" with similar commandline arguments to generate it and then run this again.'
     
     dataset_df_list = []
     

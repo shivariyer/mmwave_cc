@@ -485,6 +485,7 @@ string get_fields()
 {
   vector<string> fields = {
       "frame.number",
+      "frame.time_epoch",
       "frame.time_relative",
       "ip.src",
       "ip.dst",
