@@ -192,7 +192,8 @@ send_ttr(struct tcp_conn *conn, unsigned int ttr, unsigned int blksize, bool pro
   
   // end tcp flow
   //gettimeofday(&timestamp, NULL);
-  fprintf(logfp, "END SEND %s:%s TIME %ld.%.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
+  if (logfp)
+    fprintf(logfp, "END SEND %s:%s TIME %ld.%.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
   
   print_bytes_nice((long) ntotal);
   
@@ -254,7 +255,9 @@ send_nblocks(struct tcp_conn *conn, int n_blocks, unsigned int blksize, bool pro
   
   // end tcp flow
   gettimeofday(&timestamp, NULL);
-  fprintf(logfp, "END SEND %s:%s TIME %ld.%.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
+
+  if (logfp)
+    fprintf(logfp, "END SEND %s:%s TIME %ld.%.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
   
   print_bytes_nice((long) ntotal);
   
@@ -389,7 +392,9 @@ send_fromtrace(struct tcp_conn *conn, char *tracefilepath) {
   }
   
   gettimeofday(&timestamp, NULL);
-  fprintf(logfp, "END SEND %s:%s TIME %ld.%.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
+
+  if (logfp)
+    fprintf(logfp, "END SEND %s:%s TIME %ld.%.6ld BYTES %zd\n", conn->host, conn->service, timestamp.tv_sec, timestamp.tv_usec, ntotal);
   
   print_bytes_nice((long) ntotal);
   
@@ -501,6 +506,8 @@ int main(int argc, char** argv)
   }
   
   // finally, close connection
+  cout << "Done, closing connection." << endl;
+  
   close(conn.sockfd);
   
   if (logfp)
