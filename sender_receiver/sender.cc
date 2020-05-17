@@ -506,24 +506,62 @@ string get_fields()
   }
 
   return result + " ";
+
+  // string result = "";
+  // for (string field : fields)
+  // {
+  //   result = result + field + ",";
+  // }
+
+  // return result;
+
+}
+
+string get_trace(string path)
+{
+  if (path.find("fanrunning") != string::npos)
+    return "fanrunning";
+  if (path.find("humanmotion") != string::npos)
+    return "humanmotion";
+  if (path.find("stationary") != string::npos)
+    return "stationary";
+  if (path.find("walkandturn") != string::npos)
+    return "walkandturn";
+
+  return NULL;
+
+}
+
+string get_mode(int genmethod, send_mode mode)
+{
+  if (genmethod == 'n')
+    return "N" + mode.n_blocks;
+  if (genmethod == 't')
+    return "T" + mode.ttr;
+  
+  return NULL;
+
 }
 
 //TODO change name of outfile to match current trace
-int run_tshark()
+int run_tshark(string path, int genmethod, send_mode mode)
 {
+  string trace = get_trace(path);
+  string mode_str = "_T10_"; //et_mode(genmethod, mode);
   //get interface name from ifconfig
   //run wireshark with interface and output to file
-  string outfile = "wireshark_out";
   string interface = " -i " + get_interface("link") + " ";
   string fields = get_fields();
   string filter = " -f tcp ";
-  string output_pcapng = " -w output/tshark_capture ";
-  string output_text = " > output/tshark_outfile.txt ";
+  string output_pcapng = " -w output/" + trace + mode_str + "capture ";
+  string output_text = " >> output/tshark_outfile.txt ";
   string additional_flags = " -q ";
 
-  //string temp = format("wireshark -i {} -f {} -w {} -k", interface, filter, outfile);
-  string temp2 = "tshark -i " + interface + " -f " + filter + " -w tshark_special_file"; // + " > tshark_outfile.txt";
-  string temp = "tshark" + interface + filter + fields + output_text;
+  // string temp2 = "echo " + fields + " > output/tshark_outfile.txt ";
+  // const char* cmd = temp2.c_str();
+  // system(cmd);
+
+  string temp = "tshark" + interface + filter + output_pcapng;
   //need to convert to const char for system() function
   const char *ws_cmd = temp.c_str();
   system(ws_cmd);
@@ -559,6 +597,7 @@ int main(int argc, char **argv)
   char *cc_algo = NULL;       // the cc algorithm to use
   char *logfilepath = NULL;   // path to log file (optional)
   bool verbose = false;       // whether to show verbose output (log the output of sender)
+  string path;
 
   // Shiva: method of generation of packets ("const" by default)
   int genmethod = 0;
@@ -605,6 +644,7 @@ int main(int argc, char **argv)
       break;
     case 'l':
       logfilepath = optarg;
+      path = optarg;
       // open log file
       if (!(logfp = fopen(logfilepath, "w")))
       {
@@ -674,7 +714,7 @@ int main(int argc, char **argv)
   }
   else
   {
-    run_tshark();
+    run_tshark(path, genmethod, mode);
     //string str = to_string(sleep(10));
     //cout << "Sleep Return: " +  str << endl;
 
