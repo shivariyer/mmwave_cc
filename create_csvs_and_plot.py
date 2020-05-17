@@ -50,7 +50,7 @@ if __name__ == '__main__':
     parser.add_argument('--algo', '-a', help="The specific algo folder",
                         default='tcp')
     parser.add_argument('--direction', '-d', help="Whether to use uplink or downlink trace",
-                        default='uplink')
+                        default='downlink')
     parser.add_argument('--ifolder', '-if', help="Folder where mahimahi logs are stored",
                         default="output")
     parser.add_argument('--ffolder', '-ff', help="Folder where to draw this figure ",
@@ -76,7 +76,9 @@ if __name__ == '__main__':
     # create a clear file from the raw data which pairs
     # together all RTTs and inter_sent_times for every packet
     # this produces the tracename_packet_info.log file
-    extract_data.extract()
+    extract_data.extract(args.ifolder, args.trace)
+    chop_chop = extract_data.get_nth_occurrence(args.trace, "_", 1)
+    log_prefix = args.trace[:chop_chop]
 
     # parse mm log file and get the queue size, capacity info at every
     # ms, with the true timestamps
@@ -94,7 +96,7 @@ if __name__ == '__main__':
     #print("parsing the sender file")
     #packet_info_file = os.path.join(args.ifolder, args.trace+'_sender.log')
     print("parsing the extracted file")
-    packet_info_file = os.path.join(args.ifolder, 'tracename_packet_info.log')
+    packet_info_file = os.path.join(args.ifolder, f'{log_prefix}_packet_info.log')
 
     with open(packet_info_file) as fin:
         packet_lines = fin.readlines()

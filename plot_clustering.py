@@ -185,11 +185,17 @@ def giveSuffix(fname):
             return trace + str(int(random.random()*1000))
     return "SHOULD_NOT_REACH_THIS" + str(int(random.random()*1000))
 
-def do_plot(inpdir):
+def do_plot(inpdir, history):
     ''' All the output files in \'inpdir\' will be collected. '''
     
-    allfeatures = np.asarray(['RTT-4', 'IAT-4', 'RTT-3', 'IAT-3', 'RTT-2', 'IAT-2', 'RTT-1', 'IAT-1'])
-    pat = re.compile('(fset(\d+)_H\d+_(.+)_sp(\d{2})_tr(.+)_w(\d)_pkt(\d{2})_s(.+))\.')
+    # allfeatures = np.asarray(['RTT-4', 'IAT-4', 'RTT-3', 'IAT-3', 'RTT-2', 'IAT-2', 'RTT-1', 'IAT-1'])
+    feats = []
+    for i in range(history, 0, -1):
+        feats.append(f'RTT-{i}')
+        feats.append(f'IAT-{i}')
+    
+    allfeature = np.assarray([feats])
+    #pat = re.compile('(fset(\d+)_H\d+_(.+)_sp(\d{2})_tr(.+)_w(\d)_pkt(\d{2})_s(.+))\.')
 
     allfiles = glob.glob(os.path.join(inpdir, 'report_*_H1_*.txt'))
     allfiles.sort()
@@ -332,8 +338,8 @@ def plot_bars_compare_hyperparams(inpdir, fset, histlen, tracename, sp, sendrate
 
 if __name__ == '__main__':
 
-    datadir = 'results/clustering_202004042304'
-    do_plot(datadir)
+    datadir = 'results/clustering_202005170023'
+    do_plot(datadir, history=20)
     assert False
 
     # fset = '1'

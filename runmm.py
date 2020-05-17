@@ -122,8 +122,9 @@ class Simulation(object):
         mm_cmd = 'mm-link {0} {0} --uplink-log {1}_uplink.csv --downlink-log {1}_downlink.csv'.format(
             tracepath, savepathprefix)
         if self.buf_len is not None:
-            mm_cmd += ' --uplink-queue=droptail --uplink-queue-args=bytes={}'.format(
-                self.buf_len)
+            #henry: added downlink-queue
+            mm_cmd += ' --uplink-queue=droptail --uplink-queue-args=bytes={} --downlink-queue=droptail --downlink-queue-args=bytes={}'.format(
+                self.buf_len, self.buf_len)
 
         # (iii) sender command
         sender_cmd = 'sender_receiver/sender {{}} {}'.format(self.port)
@@ -314,7 +315,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--disp-plot', action='store_true',
                         help='Display the tput-delay plot',
-                        default=True)
+                        default=False)
 
     parser.add_argument('--save-plot', action='store_true',
                         help='Save the tput-delay plot',

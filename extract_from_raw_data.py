@@ -70,6 +70,7 @@ def create_packet_list(tshark_file):
 
     # Get indexes of required fields
     fields = get_fields(tshark_file)
+    
     frame_index = get_index("frame.number", fields)
     cap_time_index = get_index("frame.time_relative", fields)
     epoch_time_index = get_index("frame.time_epoch", fields)
@@ -86,7 +87,7 @@ def create_packet_list(tshark_file):
     for line in tshark_file:
         if line[-1] == '\n':
             line = line[:-1]
-        packet_data = line.split(',')
+        packet_data = line.split()
 
         packet = Packet(
             frame_number=int(packet_data[frame_index]),
@@ -122,24 +123,58 @@ def get_and_set_rtts(packet_list):
                 logging.warning(f'packet ts_frame number: {packet.frame_number} was declared as ack but has no acks_frame')
     return packet_list
 
+#a hard coded fix
+def add_fields_to_file(filename):
+    fp = open(filename, 'w')
+    fields = [
+        "frame.number",
+        "frame.time_epoch",
+        "frame.time_relative",
+        "ip.src",
+        "ip.dst",
+        "_ws.col.Protocol",
+        "tcp.seq",
+        "tcp.nxtseq",
+        "tcp.ack",
+        "tcp.len",
+        "tcp.analysis.acks_frame",
+        "tcp.analysis.ack_rtt"
+    ]
+    result = ""
+    for field in fields:
+        result += field + ','
+    fp.write(result + '\n')
+    fp.close()
+
+def get_nth_occurrence(some_str, substr, n):
+    parts = some_str.split(substr, n+1)
+    if len(parts) <= n + 1:
+        return -1
+    return len(some_str) - len(parts[-1]) - len(substr)
+
 
 # TODO allow user to specify name of file to open and name of file this script produces
-def extract():
+def extract(ifolder, trace):
     logging.basicConfig(filename="extract_errors.log", filemode='w',
                         format='%(name)s - %(levelname)s - %(message)s')
 
-    # first convert to text file
-    # os.system('tshark -r output/tshark_capture -w output/tshark_outfile.txt')
 
-    tshark_file = open("output/tshark_outfile.txt")
+    where_to_chop = get_nth_occurrence(trace, "_", 1)
+    trace = trace[:where_to_chop]
+
+    # first convert pcapng file to text
+    add_fields_to_file(f"{ifolder}/{trace}_packet_data.txt")
+    os.system(f"tshark -r {ifolder}/{trace}_capture >> {ifolder}/{trace}_packet_data.txt")
+
+    tshark_file = open(f"{ifolder}/{trace}_packet_data.txt")
     packet_list = create_packet_list(tshark_file)
     tshark_file.close()
 
     packet_list = get_and_set_rtts(packet_list)
 
-    outfile = open("output/tracename_packet_info.log", 'w')
+    outfile = open(f"{ifolder}/{trace}_packet_info.log", 'w')
     outfile.write(
-        "my_frame  ts_frame  cap_time  payload  rtt  inter_sent_time\n")
+        "my_frame  ts_frame  epoch_time  cap_time  payload  rtt  inter_sent_time\n")
 
     # adding my own frame numbers for the payload packets
     # and recording the time between two packets being sent

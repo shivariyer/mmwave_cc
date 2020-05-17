@@ -26,7 +26,7 @@ h.setLevel(logging.INFO)
 h.setFormatter(prettyFormatter)
 log.addHandler(h)
 
-histlen_MAX = 4
+histlen_MAX = 20
 
 # feature set
 # 1: default (RTT and IAT)
@@ -36,16 +36,8 @@ histlen_MAX = 4
 # threshold for 0/1
 thres = 0.5
 
-#TrafficRates = ['620']
-#TrafficRates = ['620-680']
-#TrafficRates = ['100', '200', '300', '400', '500', '600', '700', '800', '900', '1000']
-#TrafficRates = ['100-1000']
-TrafficRates = ['1000']
-
 # averaging window size
-#Npkts = [1, 10, 50]
-#Npkts = [1, 10]
-Npkts = [1]
+Npkts = [1, 5, 10, 20, 30, 40, 50]
 
 # relative weight between RTT and IAT
 #Weights = np.arange(.1, 1.0, .2)
@@ -59,10 +51,15 @@ Npkts = [1]
 #            (1, 0, 1, 0),
 #            (0, 1, 0, 1),
 #            (1, 0, 0, 1)]
-Weights = [(1, 1)]
+# Weights over RTT and IAT1
+Weights = [
+  (1, 1),
+  (1, 0),
+  (0, 1)
+]
 
 # datasets2 folder is for recording capacity
-inFolder = './datasets'
+inFolder = './dataset'
 outFolder = './results'
 saveFolder = os.path.join(outFolder, 'clustering_{}'.format(datetime.now().strftime('%Y%m%d%H%M')))
 if os.path.exists(saveFolder):
@@ -74,38 +71,44 @@ os.makedirs(saveFolder)
 emulTime = 60
 
 # for outlier removal (INF means no removal at all)
-#sigmas = [1, 2, 3, np.inf]
 sigmas = [np.inf]
 
 # for selecting the input files
-#spikes = [5, 10]
-spikes = [1]
+# traces = [
+#   {
+#     'name': 'fanrunning',
+#     'ql': 400000
+#   }
+# ]
 traces = [
   {
     'name': 'fanrunning',
     'ql': 400000
+  }, 
+  {
+    'name': 'stationary',
+    'ql': 500000
+  }, 
+  {
+    'name' : 'humanmotion',
+    'ql' : 300000
+  },
+  {
+    'name' : 'walkandturn',
+    'ql' : 500000
   }
 ]
-# traces = [
-#   # {
-#   #   'name': 'fanrunning',
-#   #   'ql': 400000
-#   # }, 
-#   # {
-#   #   'name': 'stationary',
-#   #   'ql': 500000
-#   # }, 
-#   {
-#     'name' : 'humanmotion',
-#     'ql' : 300000
-#   },
-#   {
-#     'name' : 'walkandturn',
-#     'ql' : 500000
-#   }
-# ]
 
 random_state = 1
+
+# weaves together two lists of the same size
+def weave_lists(list1, list2):
+  weaved = []
+  for i in range(len(list1)):
+    weaved.append(list1[i])
+    weaved.append(list2[i])
+  return weaved
+  
 
 #kmeans_cluster = KMeans(n_clusters=2, random_state=random_state)
 
@@ -150,14 +153,9 @@ def ShapeData (X, ws):
   X = ScaleFeatures(X, ws)
   return X
 
-def GetData (traceName, ql, trrate, sp, npkts):
-  # suffix = 'dataset_H04_{}_udp_file_{}-mbps-poisson+spikes-{}-10-T-{}-seed-0_q{}'.format(traceName, trrate, sp, emulTime, ql)
-  # dpath = inFolder + '/' + suffix + '_uplink.csv'
-  #suffix = 'dataset_H04_{}_bint-{}_{}_t={}_ECN2'.format(traceName, sp, trrate, emulTime) 
-  #suffix = 'dataset_H04_{}_bint{}_q{}_T{}_qfrac'.format(traceName, sp, ql, emulTime)
+def GetData (traceName, ql, npkts):
 
-  #suffix = 'dataset_H04_{}_{}mbps_bint{}_q{}_T{}_qfrac'.format(traceName, trrate, sp, ql, emulTime)
-  suffix = 'dataset_H04_{}_make_dataset_out'.format(traceName)
+  suffix = 'dataset_H{:02d}_{}_{}_make_dataset_out'.format(histlen_MAX, traceName, ql)
   dpath = inFolder + '/' + suffix + '.csv'
   
   log.info ('Opening "{}"'.format(dpath) )
@@ -168,12 +166,16 @@ def GetData (traceName, ql, trrate, sp, npkts):
   #X = dataset[:, [0,1,3,4,6,7,9,10,12,13]]
   #Y = dataset[:, 14]
   #Cap = dataset[:, 15]
-  dataset.loc[:,['IAT1_tminus4', 'IAT1_tminus3', 'IAT1_tminus2', 'IAT1_tminus1', 'IAT1_tminus0']] /= 1e6
-  X = dataset[['RTT_tminus4', 'IAT1_tminus4', 
-               'RTT_tminus3', 'IAT1_tminus3', 
-               'RTT_tminus2', 'IAT1_tminus2',
-               'RTT_tminus1', 'IAT1_tminus1', 
-               'RTT_tminus0', 'IAT1_tminus0']].values
+  hist_feat_rtt = []
+  hist_feat_iat1 = []
+  for i in range(histlen_MAX, -1, -1):
+    hist_feat_rtt.append(f'RTT_tminus{i}')
+    hist_feat_iat1.append(f'IAT1_tminus{i}')
+
+  dataset.loc[:,hist_feat_iat1] /= 1e6
+
+  weaved_lists = weave_lists(hist_feat_rtt, hist_feat_iat1)
+  X = dataset[weaved_lists].values
   #Y = (dataset['Qfrac_tminus0'].values > thres)
   Y = (dataset['QfracCap_tminus0'].values > thres)
   Cap = dataset['Cap_tminus0'].values
@@ -240,91 +242,91 @@ def ChooseLabel (y_pred, Y):
   return y_pred
 
 
-def DoCluster (name, ql, sp, npkts):
+def DoCluster (name, ql, npkts):
   
-  featuresS = np.asarray(['RTT-4', 'IAT1-4',
-                          'RTT-3', 'IAT1-3', 
-                          'RTT-2', 'IAT1-2',
-                          'RTT-1', 'IAT1-1',
-                          'RTT-0', 'IAT1-0'])
+  hist_feat_list = []
+  for i in range(histlen_MAX, -1, -1):
+    hist_feat_list.append(f'RTT-{i}')
+    hist_feat_list.append(f'IAT1-{i}')
+    
+  featuresS = np.asarray(hist_feat_list)
   
-  for trIdx in range(len(TrafficRates)):
-    X, Y, Cap  = GetData(name, ql, TrafficRates[trIdx], sp, npkts)
-    #X, Y = GetData(name, ql, TrafficRates[trIdx], sp, npkts)
-    for fset, w in enumerate(Weights):
-      #wss = np.tile([w, 1-w], 5)
-      wss = np.tile(w, histlen_MAX+1)
-      for h in range(histlen_MAX+1):
-      #for h in [histlen_MAX]:
-        # if fset == '1':
-        #   cols = range(8-4*(h), 20)
-        # elif fset == '2':
-        #   cols = range(8-4*(h), 20, 2) # using only sender size info
-        # else:
-        #   raise Exception('fset needs to be \'1\' or \'2\' only')
-        cols = wss.astype(bool)
-        # henry: I believe this ought be a function of the number of parameters in weights
-        # was not working when hard coded as 4 * ...
-        params_in_weights = len(Weights[0])
-        cols[:params_in_weights*(histlen_MAX - h)] = False
-        features = featuresS[cols]
-        ws = wss[cols].astype(float)
-        ws /= ws.sum()
-        #print(ws)
-        data = X[:,cols]
-        
-        for sigma in reversed(sigmas):
-          
-          log.info ("=== Trace {} Spikes {} Pkts {} --- Rate {} Weight {} History {} SigmaFactor {} ===".format(name, sp, npkts, TrafficRates[trIdx], w, h, sigma))
-          
-          s = 'INF' if np.isinf(sigma) else str(sigma)
-
-          data, auxY, auxCap = FilterData (data, Y, Cap, sigma)
-          #data, auxY = FilterData (data, Y, sigma)
-
-          data = ShapeData (data, ws)  
-
-          model = mixture.GaussianMixture(n_components=2, verbose=1)
-          #kmeans = kmeans_cluster.fit(data)
-          #y_pred = kmeans.labels_
-          model.fit(data)
-          y_pred = model.predict(data)
-          y_pred = ChooseLabel(y_pred, auxY)
-          report = metrics.classification_report(auxY, y_pred, labels=[0,1], target_names=['No congestion', 'Congestion'])
-          print(report)
-          
-          #savesuffix = 'fset{}_thres{}_H{}_{}_bint{:02d}_tr{}_w{}_pkt{:02d}_s{}'.format(fset, int(thres*10), h, name, sp, TrafficRates[trIdx], int(w*10), npkts, s)
-          savesuffix = 'fset{}_thres{}_H{}_{}_bint{:02d}_tr{}_pkt{:02d}_s{}'.format(fset, int(thres*10), h, name, sp, TrafficRates[trIdx], npkts, s)
-          
-          with open(os.path.join(saveFolder, 'labels_{}.csv'.format(savesuffix)), 'w') as fout:
-            print('True,Predicted,Capacity', file=fout)
-            np.savetxt(fout, np.hstack((np.vstack(auxY), np.vstack(y_pred), np.vstack(auxCap))), delimiter=',', fmt=['%.0f', '%.0f', '%f'])
-            #print('True Predicted', file=fout)
-            #np.savetxt(fout, np.hstack((np.vstack(auxY), np.vstack(y_pred))), fmt=['%.0f', '%.0f'])
-          
-          with open(os.path.join(saveFolder, 'centroids_{}.csv'.format(savesuffix)), 'w') as fout:
-            print(','.join(features), file=fout)
-            np.savetxt(fout, model.means_, delimiter=',', fmt='%f')
-            #np.savetxt(fout, kmeans.cluster_centers_, delimiter=',', fmt='%f')
-          
-          # only for GMMs: save the covariance matrices as well
-          with open(os.path.join(saveFolder, 'covariances_{}.csv'.format(savesuffix)), 'w') as fout:
-            for mat in model.covariances_:
-              np.savetxt(fout, mat, fmt='%f')
-              fout.write(os.linesep)
-          
-          with open(os.path.join(saveFolder, 'finaldata_{}.csv'.format(savesuffix)), 'w') as fout:
-            np.savetxt(fout, features, delimiter=',', fmt='%s')
-            print(','.join(features), file=fout)
-            np.savetxt(fout, data, delimiter=',', fmt='%f')
-          
-          with open(os.path.join(saveFolder, 'report_{}.txt'.format(savesuffix)), 'w') as fout:
-            print(report, file=fout)
+  X, Y, Cap  = GetData(name, ql, npkts)
+  
+  for fset, w in enumerate(Weights):
+    #wss = np.tile([w, 1-w], 5)
+    wss = np.tile(w, histlen_MAX+1)
+    for h in range(histlen_MAX+1):
+    #for h in [histlen_MAX]:
+      # if fset == '1':
+      #   cols = range(8-4*(h), 20)
+      # elif fset == '2':
+      #   cols = range(8-4*(h), 20, 2) # using only sender size info
+      # else:
+      #   raise Exception('fset needs to be \'1\' or \'2\' only')
+      cols = wss.astype(bool)
+      # henry: I believe this ought be a function of the number of parameters in weights
+      # was not working when hard coded as cols[:4*(...)]
+      params_in_weights = len(Weights[0])
+      cols[:params_in_weights*(histlen_MAX - h)] = False
+      features = featuresS[cols]
+      ws = wss[cols].astype(float)
+      ws /= ws.sum()
+      #print(ws)
+      data = X[:,cols]
       
+      for sigma in reversed(sigmas):
+        
+        log.info ("=== Trace {} Pkts {} --- Weight {} History {} SigmaFactor {} ===".format(name, npkts, w, h, sigma))
+        
+        s = 'INF' if np.isinf(sigma) else str(sigma)
+
+        data, auxY, auxCap = FilterData (data, Y, Cap, sigma)
+        #data, auxY = FilterData (data, Y, sigma)
+
+        data = ShapeData (data, ws)  
+
+        model = mixture.GaussianMixture(n_components=2, verbose=1)
+        #kmeans = kmeans_cluster.fit(data)
+        #y_pred = kmeans.labels_
+        model.fit(data)
+        y_pred = model.predict(data)
+        y_pred = ChooseLabel(y_pred, auxY)
+        report = metrics.classification_report(auxY, y_pred, labels=[0,1], target_names=['No congestion', 'Congestion'])
+        print(report)
+        
+        #savesuffix = 'fset{}_thres{}_H{}_{}_bint{:02d}_tr{}_w{}_pkt{:02d}_s{}'.format(fset, int(thres*10), h, name, sp, TrafficRates[trIdx], int(w*10), npkts, s)
+        savesuffix = 'fset{}_thres{}_H{}_{}_pkt{:02d}_s{}'.format(fset, int(thres*10), h, name, npkts, s)
+        
+        with open(os.path.join(saveFolder, 'labels_{}.csv'.format(savesuffix)), 'w') as fout:
+          print('True,Predicted,Capacity', file=fout)
+          np.savetxt(fout, np.hstack((np.vstack(auxY), np.vstack(y_pred), np.vstack(auxCap))), delimiter=',', fmt=['%.0f', '%.0f', '%f'])
+          #print('True Predicted', file=fout)
+          #np.savetxt(fout, np.hstack((np.vstack(auxY), np.vstack(y_pred))), fmt=['%.0f', '%.0f'])
+        
+        with open(os.path.join(saveFolder, 'centroids_{}.csv'.format(savesuffix)), 'w') as fout:
+          print(','.join(features), file=fout)
+          np.savetxt(fout, model.means_, delimiter=',', fmt='%f')
+          #np.savetxt(fout, kmeans.cluster_centers_, delimiter=',', fmt='%f')
+        
+        # only for GMMs: save the covariance matrices as well
+        with open(os.path.join(saveFolder, 'covariances_{}.csv'.format(savesuffix)), 'w') as fout:
+          for mat in model.covariances_:
+            np.savetxt(fout, mat, fmt='%f')
+            fout.write(os.linesep)
+        
+        with open(os.path.join(saveFolder, 'finaldata_{}.csv'.format(savesuffix)), 'w') as fout:
+          np.savetxt(fout, features, delimiter=',', fmt='%s')
+          print(','.join(features), file=fout)
+          np.savetxt(fout, data, delimiter=',', fmt='%f')
+        
+        with open(os.path.join(saveFolder, 'report_{}.txt'.format(savesuffix)), 'w') as fout:
+          print(report, file=fout)
+    
   return
 
 
 if __name__ == '__main__':
-  for tr, sp, npkts in itertools.product(traces, spikes, Npkts):
-    print("trace = {}; queue length = {}; sp = {};". format(tr['name'], tr['ql'], sp))
-    DoCluster(tr['name'], tr['ql'], sp, npkts)
+  for tr, npkts in itertools.product(traces, Npkts):
+    print("trace = {}; queue length = {};". format(tr['name'], tr['ql']))
+    DoCluster(tr['name'], tr['ql'], npkts)
