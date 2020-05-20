@@ -26,7 +26,7 @@ h.setLevel(logging.INFO)
 h.setFormatter(prettyFormatter)
 log.addHandler(h)
 
-histlen_MAX = 20
+histlen_MAX = 10
 
 # feature set
 # 1: default (RTT and IAT)
@@ -37,7 +37,7 @@ histlen_MAX = 20
 thres = 0.5
 
 # averaging window size
-Npkts = [1, 5, 10, 20, 30, 40, 50]
+Npkts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 # relative weight between RTT and IAT
 #Weights = np.arange(.1, 1.0, .2)

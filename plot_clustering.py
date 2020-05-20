@@ -190,14 +190,15 @@ def do_plot(inpdir, history):
     
     # allfeatures = np.asarray(['RTT-4', 'IAT-4', 'RTT-3', 'IAT-3', 'RTT-2', 'IAT-2', 'RTT-1', 'IAT-1'])
     feats = []
-    for i in range(history, 0, -1):
+    for i in range(history, -1, -1):
         feats.append(f'RTT-{i}')
         feats.append(f'IAT-{i}')
     
-    allfeature = np.assarray([feats])
-    #pat = re.compile('(fset(\d+)_H\d+_(.+)_sp(\d{2})_tr(.+)_w(\d)_pkt(\d{2})_s(.+))\.')
+    allfeatures = np.asarray(feats)
+    pat = re.compile('(fset(\d+)_thres(\d+)_H\d+_(.+)_pkt(\d{2})_s(.+))\.')
 
-    allfiles = glob.glob(os.path.join(inpdir, 'report_*_H1_*.txt'))
+    curr_hist = 0
+    allfiles = glob.glob(os.path.join(inpdir, f'report_*_H{curr_hist}_*.txt'))
     allfiles.sort()
 
     figdir = os.path.join(inpdir, 'figures')
@@ -207,21 +208,26 @@ def do_plot(inpdir, history):
     for fpath in allfiles:
 
         fname = os.path.basename(fpath)
-        # m = pat.search(fname)
-        # fsuffix, fset, tracename, bint, sendrate, weight, npkts, s = m.groups()
-        # print('fset = {}, tracename = {}, bint = {}, sendrate = {}, weight = {}, npkts = {} sigma = {}'.format(fset, tracename, bint, sendrate, weight, npkts, s))
-        fsuffix = giveSuffix(fname)
-        fset = '1'
-
-        auxY, y_pred = np.loadtxt(os.path.join(inpdir, 'labels_{}.txt'.format(fsuffix)), skiprows=1, unpack=True)
+        m = pat.search(fname)
+        fsuffix, fset, thres, tracename, npkts, s = m.groups()
+        print(f'fset = {fset}, tracename = {tracename}, npkts = {npkts} sigma = {s}')
+        #fsuffix = giveSuffix(fname)
+        #fset = '1'
+        data_skip = ((curr_hist+1) * 2) + 1
+        auxY, y_pred, capacity = np.loadtxt(os.path.join(inpdir, 'labels_{}.csv'.format(fsuffix)), delimiter=',', skiprows=1, unpack=True)
         centroids = np.loadtxt(os.path.join(inpdir, 'centroids_{}.csv'.format(fsuffix)), delimiter=',', skiprows=1)
-        data = np.loadtxt(os.path.join(inpdir, 'finaldata_{}.csv'.format(fsuffix)), delimiter=',', skiprows=1)
+        data = np.loadtxt(os.path.join(inpdir, 'finaldata_{}.csv'.format(fsuffix)), delimiter=',', skiprows=data_skip)
 
-        if fset == '1':
-            features = allfeatures[[6,7]]
+        rtt_index = (history - curr_hist) * 2
+        iat_index = rtt_index + 1
+        if fset == '0': #both RTT and IAT1
+            features = allfeatures[[rtt_index,iat_index]]
             fig = plot_cluster_scatter_nf2(data, auxY, y_pred, features)
+        elif fset == '1': #only RTT
+            features = allfeatures[[rtt_index]] # using only sender size info
+            fig = plot_cluster_scatter_nf1(data, auxY, y_pred, features)
         elif fset == '2':
-            features = allfeatures[[6]] # using only sender size info
+            features = allfeatures[[iat_index]]
             fig = plot_cluster_scatter_nf1(data, auxY, y_pred, features)
         else:
             raise Exception('fset needs to be \'1\' or \'2\' only')
