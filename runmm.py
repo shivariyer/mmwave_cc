@@ -85,7 +85,7 @@ class Simulation(object):
         if not os.path.exists(savedir):
             os.makedirs(savedir)
         
-        print('Saving all output to {}'.format(savedir))
+        print('Saving all output to this directory: "{}"'.format(savedir))
         
         # fixing dest file names
         if self.ttr is not None:
@@ -137,6 +137,8 @@ class Simulation(object):
         
         if mm_side == 'sender':
             server_ip = '100.64.0.1' # MAHIMAHI_BASE: address exposed by native machine to processes inside mahimahi
+
+            mmlogfpath = savepathprefix + '_uplink.csv'
             
             # starting the receiver in a separate process
             if verbose >= 1:
@@ -163,6 +165,8 @@ class Simulation(object):
             
         elif mm_side == 'receiver':
             server_ip = '100.64.0.2' # address exposed by mahimahi to processes outside
+
+            mmlogfpath = savepathprefix + '_downlink.csv'
             
             # starting the receiver and mahimahi in a separate process
             receiver_cmd = mm_cmd + ' -- ' + receiver_cmd
@@ -210,7 +214,7 @@ class Simulation(object):
             print('Receiver process returned', receiver_process_retcode)
             
         print('Plotting performance ...')
-        plot_tput_delay(savepathprefix + '_downlink.csv', title=os.path.basename(savepathprefix), disp=disp_plot, save=save_plot)
+        plot_tput_delay(mmlogfpath, title=os.path.basename(savepathprefix), disp=disp_plot, save=save_plot)
         
         return
 
