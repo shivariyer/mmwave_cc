@@ -30,7 +30,7 @@ def parse_mm_queue_delays(filepath):
                 base_timestamp = int(line.split(":")[-1])
                 continue
             elif not line.startswith('#'):
-                words = line.split()
+                words = line.split('~')[0].split()
                 if words[1] == '-':
                     timestamp = int(words[0]) - base_timestamp
                     delay = float(words[3])
@@ -68,7 +68,7 @@ def parse_mm_throughput(filepath, ms_per_bin=500, verbose=True):
                 base_timestamp = int(line.split(":")[-1])
                 continue
             elif not line.startswith('#'):
-                words = line.split()
+                words = line.split('~')[0].split()
                 ms_elapsed = int(words[0]) - base_timestamp
                 bin_i = ms_elapsed // ms_per_bin
                 if bin_i > bin_cur:
