@@ -100,7 +100,7 @@ if __name__ == '__main__':
     # plot_tput_delay(sys.argv[1], title='Title')
     
     # batch generation of tput-delay plots for all results
-    for ii, algo in enumerate(['bbr', 'bicdctcp_100000', 'bicdctcp_1000000', 'copa', 'cubic', 'reno'], 1):
+    for ii, algo in enumerate(['bbr', 'bicdctcp_100000', 'bicdctcp_1000000', 'copa', 'cubic', 'reno', 'verus'], 1):
         print(os.linesep, ii, algo, os.linesep)
         flist = glob('output/{}/*/*_downlink.csv'.format(algo))
         flist.sort()
