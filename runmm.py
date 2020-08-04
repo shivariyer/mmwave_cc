@@ -271,7 +271,7 @@ if __name__ == '__main__':
                         default=Simulation.BLKSIZE_DEFAULT)
     
     parser.add_argument('--cc-algo', '-C', 
-                        choices=('cubic', 'reno', 'ccp'),
+                        choices=('cubic', 'reno', 'ccp', 'bbr'),
                         help='Congestion control algorithm to use')
     
     parser.add_argument('--buf-len', '-q', type=positive_int,
