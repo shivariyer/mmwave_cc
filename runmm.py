@@ -116,9 +116,16 @@ class Simulation(object):
         
         # (ii) mm command
         tracepath = os.path.join('traces', 'channels', self.trace)
-        mm_cmd = 'mm-link {0} {0} --uplink-log {1}_uplink.csv --downlink-log {1}_downlink.csv'.format(tracepath, savepathprefix)
+        # mm_cmd = 'mm-link {0} {0} --uplink-log {1}_uplink.csv --downlink-log {1}_downlink.csv'.format(tracepath, savepathprefix)
+        if mm_side== "receiver":
+            mm_cmd = 'mm-link {0} {0} --downlink-log {1}_downlink.csv'.format(tracepath, savepathprefix)
+        else:
+            mm_cmd = 'mm-link {0} {0} --uplink-log {1}_uplink.csv'.format(tracepath, savepathprefix)
+
         if self.buf_len is not None:
+            # mm_cmd += ' --uplink-queue=droptail --uplink-queue-args=bytes={}'.format(self.buf_len)
             mm_cmd += ' --uplink-queue=droptail --uplink-queue-args=bytes={}'.format(self.buf_len)
+            mm_cmd += ' --downlink-queue=droptail --downlink-queue-args=bytes={}'.format(self.buf_len)
         
         # (iii) sender command
         sender_cmd = 'sender_receiver/sender {{}} {}'.format(self.port)
