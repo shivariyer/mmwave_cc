@@ -10,6 +10,18 @@ __pycache__
 sender_receiver/sender
 sender_receiver/receiver
 
-# files
+# output or text files
+*.pdf
+*.txt
 *.log
 *.trace 
+
+# compressed files
+*.tar.gz
+*.gz
+*.bz2
+*.7z
+*.tgz
+*.tar
+*.zip
+*.rar
