@@ -1,7 +1,8 @@
 from mmparse import *
 
 import os
-import sys 
+import sys
+import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -24,16 +25,16 @@ def plot_bgtrace(tracename):
     print('70th percentile (Mbps):', round(np.percentile(bw_scaled, 70), 3))
     print('70% of max (Mbps):', 0.7 * maxbw)
     
+    saveprefix = os.path.join(inpdir, tracename + '_Mbps')
     np.savetxt(saveprefix + '.txt', bw_scaled, fmt='%.6f')
     
-    ax.fill_between(np.arange(len(BW)), 0, bw_scaled, color='#F2D19F')
+    ax.fill_between(np.arange(len(bw)), 0, bw_scaled, color='#F2D19F')
     plt.ylabel('Available BW (Mbps)')
     plt.xlabel('Time (s)')
     plt.title('Average BW = {:.3f} Mbps, max BW = {:.3f} Mbps'.format(avgbw, maxbw))
     plt.xlim([0,60])
     # plt.grid(True, which='both')
-    saveprefix = os.path.join(inpdir, tracename + '_Mbps')
-    plt.savefig(saveprefix + '.pdf',dpi=1000,bbox_inches='tight')
+    plt.savefig(saveprefix + '.pdf', dpi=1000, bbox_inches='tight')
     plt.show()
     plt.close()
 
@@ -41,8 +42,11 @@ def plot_bgtrace(tracename):
 def plot_tput_delay(filepath, ms_per_bin=500, title=None, disp=True, save=False):
 
     plt.rc('font', size=20)
-    
+
+    print('Parsing delays ...')
     delays, delaytimes = parse_mm_queue_delays(filepath)
+
+    print('Parsing throughput ...')
     data = parse_mm_throughput(filepath, ms_per_bin)
     
     cap = data['capacity']
@@ -58,9 +62,11 @@ def plot_tput_delay(filepath, ms_per_bin=500, title=None, disp=True, save=False)
     p3, = ax2.plot(delaytimes, delays, 'k-', lw=1, label='Delay')
     
     fig.legend((p1, p2, p3), (p1.get_label(), p2.get_label(), p3.get_label()), loc='lower center', ncol=3, fontsize='small')
-    
-    if title is not None:
-        fig.suptitle(title)
+
+    if title is None:
+        title = os.path.splitext(os.path.basename(filepath))[0]
+
+    fig.suptitle(title)
     
     ax1.set_title('Cap: {:.2f} Mbps, Tput: {:.2f} Mbps, Util: {:.2f}%'.format(data['capacity_avg'], data['throughput_avg'], (data['throughput_avg'] / data['capacity_avg']) * 100))
     ax1.set_ylabel('Mbps')
@@ -93,17 +99,39 @@ def plot_tput_delay(filepath, ms_per_bin=500, title=None, disp=True, save=False)
 
 if __name__ == '__main__':
 
-    # if len(sys.argv) < 2:
-    #     print('Usage: {} <mm_log_file>'.format(sys.argv[0]))
-    #     sys.exit(-1)
-    
-    # plot_tput_delay(sys.argv[1], title='Title')
-    
-    # batch generation of tput-delay plots for all results
-    for ii, algo in enumerate(['bbr', 'bicdctcp_100000', 'bicdctcp_1000000', 'copa', 'cubic', 'reno', 'verus'], 1):
-        print(os.linesep, ii, algo, os.linesep)
-        flist = glob('output/{}/*/*_downlink.csv'.format(algo))
-        flist.sort()
-        for jj, fpath in enumerate(flist, 1):
-            print('{}/{} {}'.format(jj, len(flist), fpath))
-            plot_tput_delay(fpath, title=algo.upper(), disp=False, save=True)
+    parser = argparse.ArgumentParser()
+
+    subparsers = parser.add_subparsers(title='Types of plots to make',
+                                       help='List of valid plot names',
+                                       dest='plot_type')
+    parser_a = subparsers.add_parser('bgtrace', aliases=['trace'])
+    parser_a.add_argument('names', nargs='+', help='Name of a bg trace in traces/channels/')
+
+    parser_b = subparsers.add_parser('tput_delay', aliases=['tput', 'delay'])
+    parser_b.add_argument('mmfilepaths', nargs='+', help='Name of a mm log file (*_downlink.csv or *_uplink.csv) or directory')
+    parser_b.add_argument('--title', help='Title for plot')
+    parser_b.add_argument('--ms-per-bin', type=int, default=500, help='Milliseconds (ms) per bin')
+    parser_b.add_argument('--dir', default=False, action='store_true')
+
+    args = parser.parse_args()
+
+    if args.plot_type is None:
+        print('At least one plot_type should be specified.')
+        parser.print_usage()
+
+    elif args.plot_type == 'bgtrace':
+        for name in args.names:
+            plot_bgtrace(name)
+
+    elif args.plot_type == 'tput_delay':
+        if not args.dir:
+            for fpath in args.mmfilepaths:
+                plot_tput_delay(fpath, args.ms_per_bin, args.title, save=True)
+        else:
+            # batch generation of tput-delay plots for all results
+            assert len(args.mmfilepaths) == 1
+            flist = glob(os.path.join(args.mmfilepaths[0], '*_downlink.csv'))
+            flist.sort()
+            for jj, fpath in enumerate(flist, 1):
+                print('{}/{} {}'.format(jj, len(flist), fpath))
+                plot_tput_delay(fpath, args.ms_per_bin, args.title, disp=False, save=True)
