@@ -123,6 +123,120 @@ def plot_tput_delay(filepath, ms_per_bin=500, skip_seconds=0, title=None, disp=T
     plt.close()
     plt.rcdefaults()
 
+
+
+def plot_tput_delay_tcpdump(sender_pcap, receiver_pcap, server_ip, mmlogfilepath, skip_seconds=0, title=None, disp=True, save=False):
+
+
+    # first extract throughput at receiver
+    tput_cmd = 'tshark -r {} -Y "ip.dst=={}" -T fields -e frame.time_epoch -e frame.len -E separator=, > {}'
+
+    receiver_tput_savepath = os.path.splitext(receiver_pcap)[0] + '_tput.csv'
+    cmd = tput_cmd.format(receiver_pcap, server_ip, receiver_tput_savepath)
+    print('Extracting throughput at receiver:', cmd)
+    os.system(cmd)
+    print('Saved to "{}"'.format(receiver_tput_savepath))
+
+    # next extract throughput at sender
+    sender_tput_savepath = os.path.splitext(sender_pcap)[0] + '_tput.csv'
+    cmd = tput_cmd.format(sender_pcap, server_ip, sender_tput_savepath)
+    print('Extracting throughput at sender:', cmd)
+    os.system(cmd)
+    print('Saved to "{}"'.format(sender_tput_savepath))
+
+
+    # next get RTT at sender
+    rtt_cmd = 'tshark -r {} -Y "tcp.analysis.ack_rtt && ip.src=={}" -T fields -e frame.time_epoch -e tcp.analysis.ack_rtt -E separator=, > {}'
+
+    rtt_savepath = os.path.splitext(sender_pcap)[0] + '_RTT.csv'
+    cmd = rtt_cmd.format(sender_pcap, server_ip, rtt_savepath)
+    print('Extracting RTT:', cmd)
+    os.system(cmd)
+    print('Saved to "{}"'.format(rtt_savepath))
+
+    plt.rc('font', size=20)
+
+    print('Reading tput and RTT ...')
+    df_rtt = pd.read_csv(rtt_savepath, index_col=0, header=None, names=['timestamp', 'rtt'])
+    df_rtt['seconds'] = df_rtt.index.values.round()
+    df_rtt = df_rtt.groupby('seconds').mean()
+    df_rtt.loc[:, 'rtt'] = df_rtt.rtt.values * 1000 # convert RTT to milliseconds 
+
+    df_tput = pd.read_csv(receiver_tput_savepath, index_col=0, header=None, names=['timestamp', 'tput'])
+    df_tput['seconds'] = df_tput.index.values.round()
+    df_tput = df_tput.groupby('seconds').sum()
+    df_tput.loc[:, 'tput'] = df_tput.tput.values * 8 / 1e6 # convert bytes to megabits
+
+    print('Parsing mm log ...')
+    data = parse_mm_throughput(mmlogfilepath, 1000)
+    df_mm = pd.concat([data['ingress'], data['throughput'], data['capacity']], axis=1)
+
+    # skip certain amount of time in the beginning (if desired)
+    df_rtt = df_rtt[df_rtt.index > skip_seconds]
+    df_tput = df_tput[df_tput.index > skip_seconds]
+    df_mm = df_mm[df_mm.index > skip_seconds]
+
+    cap_mm = df_mm['capacity']
+    tput_mm = df_mm['throughput']
+    util_mm = (df_mm['throughput'] * 100.0 / df_mm['capacity']).mean()
+    
+    fig = plt.figure(figsize=(16,12), facecolor='w')
+    
+    ax1 = plt.subplot(2, 1, 1)
+    p1 = ax1.fill_between(cap_mm.index, 0, cap_mm.values, color='#F2D19F', label='Capacity')
+    p2, = ax1.plot(tput_mm.index, tput_mm.values, 'k--', label='Throughput')
+    p4, = ax1.plot(df_tput.index - data['init_timestamp'], df_tput.tput, 'r:', label='Throughput (tcpdump)')
+    
+    ax2 = plt.subplot(2, 1, 2, sharex=ax1)
+    p3, = ax2.plot(df_rtt.index - df_rtt.index[0], df_rtt.rtt, 'k-', lw=1, label='RTT')
+    
+    fig.legend((p1, p2, p4, p3), (p1.get_label(), p2.get_label(), p4.get_label(), p3.get_label()), loc='lower center', ncol=4, fontsize='small')
+
+    if title is None:
+        title = os.path.splitext(os.path.basename(mmmlogfilepath))[0]
+
+    fig.suptitle(title)
+    
+    #ax1.set_title('Cap: {:.2f} Mbps, Tput: {:.2f} Mbps, Util: {:.2f}%'.format(data['capacity_avg'], data['throughput_avg'], (data['throughput_avg'] / data['capacity_avg']) * 100))
+    ax1.set_title('Cap: {:.2f} Mbps, Tput: {:.2f} Mbps, Tput (tcpdump): {:.2f} Mbps, Util: {:.2f}%'.format(cap_mm.mean(), tput_mm.mean(), df_tput.tput.mean(), util_mm), fontsize='small')
+    ax1.set_ylabel('Mbps')
+    
+    ax2.set_title('RTT (min, max, avg) = ({:.2f}, {:.2f}, {:.2f})'.format(df_rtt.rtt.min(), df_rtt.rtt.max(), df_rtt.rtt.mean()), fontsize='small')
+    ax2.set_ylabel('RTT (ms)')
+    
+    ax2.set_xlabel('Time (s)')
+    
+    ax1.tick_params(bottom=0)
+    plt.setp(ax1.xaxis.get_ticklabels(), visible=False)
+    
+    #plt.xlim(0,60)
+    #fig.tight_layout()
+    fig.subplots_adjust(hspace=0.15)
+    #ax1.title.set_position((0.5, 0.85))
+    #ax2.title.set_position((0.5, 0.85))
+    
+    if save:
+        savepath = os.path.splitext(mmlogfilepath)[0]
+        print('Saving to', savepath)
+        if skip_seconds is None or skip_seconds == 0:
+            fig.savefig(savepath + '.png')
+        else:
+            fig.savefig(savepath + '_skip{}.png'.format(skip_seconds))
+        #df_delays_full.to_csv(savepath + '_mmdelays.csv', header=True)
+        with open(savepath + '_mmtput.csv', 'w') as fout:
+            fout.write('# duration_ms: {}'.format(data['duration_ms']) + os.linesep)
+            fout.write('# ingress_avg: {:.3f}'.format(data['ingress_avg']) + os.linesep)
+            fout.write('# throughput_avg: {:.3f}'.format(data['throughput_avg']) + os.linesep)
+            fout.write('# capacity_avg: {:.3f}'.format(data['capacity_avg']) + os.linesep)
+            fout.write('# utilization: {:.3f}'.format(data['utilization']) + os.linesep)
+            df_mm.to_csv(fout)
+    
+    if disp:
+        plt.show()
+    
+    plt.close()
+    plt.rcdefaults()
+
     
 
 if __name__ == '__main__':
