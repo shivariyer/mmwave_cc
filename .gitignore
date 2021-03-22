@@ -1,10 +1,13 @@
 # compiled files
 __pycache__
 *.pyc
+.ipynb_checkpoints
 
 # directories
 /output
 /results
+/traces/
+/notebooks
 
 # executable files
 sender_receiver/sender
