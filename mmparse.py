@@ -47,6 +47,7 @@ def parse_mm_throughput(filepath, ms_per_bin=500, verbose=True):
     from pandas import DataFrame, Index
     
     # data contains (ms, cap, arr, dep)
+    init_timestamp = None
     base_timestamp = 0
     
     ms_index = [0]
@@ -64,7 +65,9 @@ def parse_mm_throughput(filepath, ms_per_bin=500, verbose=True):
             t = tqdm(total=os.stat(filepath).st_size, desc='Parsing mm log')
         
         for line in f:
-            if line.startswith('# base timestamp'):
+            if line.startswith('# init timestamp'):
+                init_timestamp = int(line.split(':')[-1]) 
+            elif line.startswith('# base timestamp'):
                 base_timestamp = int(line.split(":")[-1])
                 continue
             elif not line.startswith('#'):
@@ -115,7 +118,8 @@ def parse_mm_throughput(filepath, ms_per_bin=500, verbose=True):
                      Index(ms_index, name='seconds') * ms_per_bin / 1000,
                      columns=['capacity', 'ingress', 'throughput'])
     
-    result_dict = {'duration_ms' : ms_elapsed,
+    result_dict = {'init_timestamp' : round(init_timestamp / 1000),
+                   'duration_ms' : ms_elapsed,
                    'capacity_avg' : cap_avg_Mbps,
                    'ingress_avg' : ingress_avg_Mbps,
                    'throughput_avg' : tput_avg_Mbps,
