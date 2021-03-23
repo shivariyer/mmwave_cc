@@ -73,8 +73,7 @@ class Simulation(object):
         
         # use iperf instead of our sender and receiver?
         self.iperf = iperf
-    
-    
+
     def run(self, savedir='output', log=False, skip_seconds=0, verbose=0, disp_plot=False, save_plot=True):
         '''Run the simulation with following runtime options.
         
@@ -194,10 +193,10 @@ class Simulation(object):
 
         sender_process.communicate('sudo tcpdump -i any -s96 -w {}_sender.pcap & '.format(savepathprefix) + sender_cmd + ' & \n sleep ' + str(self.ttr) + ' \n exit')
 
-        os.system("ps | pgrep -f sender_receiver/sender | xargs kill -9")
-        os.system("ps | pgrep -f sender_receiver/receiver | xargs kill -9")
-        os.system("ps | pgrep -f tcpdump | sudo xargs kill -9")
-        os.system("ps | pgrep -f tcpdump | sudo xargs kill -9")
+        os.system('ps | pgrep -f sender_receiver/sender | xargs kill -TERM')
+        os.system('ps | pgrep -f sender_receiver/receiver | xargs kill -TERM')
+        os.system('ps | pgrep -f tcpdump | sudo xargs kill -TERM')
+        os.system('ps | pgrep -f tcpdump | sudo xargs kill -TERM')
 
         # waiting for processes to close
         #if verbose >= 1:
@@ -220,31 +219,6 @@ class Simulation(object):
         os.unlink('{}_receiver.pcap'.format(savepathprefix))
 
         return
-
-
-def unsigned_int(arg):
-    arg = int(arg)
-    if arg < 0:
-        raise argparse.ArgumentError('Argument must be a nonnegative integer')
-    return arg
-
-
-def positive_int(arg):
-    arg = int(arg)
-    if arg <= 0:
-        raise argparse.ArgumentError('Argument must be a positive integer')
-    return arg
-
-
-def prettyprint_args(ns):
-    print(os.linesep + 'Input arguments -- ')
-    
-    for k,v in ns.__dict__.items():
-        print('{}: {}'.format(k,v))
-
-    print()
-    return
-
 
 if __name__ == '__main__':
     ''' Interactive program to run a full simulation. '''
