@@ -8,7 +8,7 @@ import subprocess as sp
 
 from time import sleep
 from plot import plot_tput_delay, plot_tput_delay_tcpdump
-
+from utils import *
 
 class Simulation(object):
     PORT = 9999
