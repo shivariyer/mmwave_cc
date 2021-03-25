@@ -157,12 +157,16 @@ def plot_tput_delay_tcpdump(sender_pcap, receiver_pcap, server_ip, mmlogfilepath
     plt.rc('font', size=20)
 
     print('Reading tput and RTT ...')
-    df_rtt = pd.read_csv(rtt_savepath, index_col=0, header=None, names=['timestamp', 'rtt'])
+    #df_rtt = pd.read_csv(rtt_savepath, index_col=0, header=None, names=['timestamp', 'rtt'])
+    df_rtt = pd.read_csv(rtt_savepath, header=None, names=['timestamp', 'rtt'])
+    df_rtt.set_index('timestamp', inplace=True)
     df_rtt['seconds'] = df_rtt.index.values.round()
     df_rtt = df_rtt.groupby('seconds').mean()
     df_rtt.loc[:, 'rtt'] = df_rtt.rtt.values * 1000 # convert RTT to milliseconds 
 
-    df_tput = pd.read_csv(receiver_tput_savepath, index_col=0, header=None, names=['timestamp', 'tput'])
+    #df_tput = pd.read_csv(receiver_tput_savepath, index_col=0, header=None, names=['timestamp', 'tput'])
+    df_tput = pd.read_csv(receiver_tput_savepath, header=None, names=['timestamp', 'tput'])
+    df_tput.set_index('timestamp', inplace=True)
     df_tput['seconds'] = df_tput.index.values.round()
     df_tput = df_tput.groupby('seconds').sum()
     df_tput.loc[:, 'tput'] = df_tput.tput.values * 8 / 1e6 # convert bytes to megabits
