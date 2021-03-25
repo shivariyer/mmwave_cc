@@ -3,21 +3,37 @@ import os
 import argparse
 
 
-def get_bytes_nice(bytes):
+def get_bytes_nice(bytes, kibi=False):
     bytes_nice = bytes
+    kilo = 1024 if kibi else 1000
     unit_nice = 'B'
-    if bytes < (1024 << 10):
-        bytes_nice = bytes / 1024
-        unit_nice = 'KiB'
-    elif bytes < (1024 << 20):
-        bytes_nice = bytes / (1024 << 10)
-        unit_nice = 'MiB'
-    elif bytes < (1024 << 30):
-        bytes_nice = bytes / (1024 << 20)
-        unit_nice = 'GiB'
-    elif bytes < (1024 << 40):
-        bytes_nice = bytes / (1024 << 30)
-        unit_nice = 'TiB'
+    if kibi:
+        if bytes < (kilo << 10):
+            bytes_nice = bytes / kilo
+            unit_nice = 'KiB'
+        elif bytes < (kilo << 20):
+            bytes_nice = bytes / (kilo << 10)
+            unit_nice = 'MiB'
+        elif bytes < (kilo << 30):
+            bytes_nice = bytes / (kilo << 20)
+            unit_nice = 'GiB'
+        elif bytes < (kilo << 40):
+            bytes_nice = bytes / (kilo << 30)
+            unit_nice = 'TiB'
+    else:
+        if bytes < kilo**2:
+            bytes_nice = bytes / kilo
+            unit_nice = 'KB'
+        elif bytes < kilo**3:
+            bytes_nice = bytes / (kilo**2)
+            unit_nice = 'MB'
+        elif bytes < kilo**4:
+            bytes_nice = bytes / (kilo**3)
+            unit_nice = 'GB'
+        elif bytes < kilo**5:
+            bytes_nice = bytes / (kilo**4)
+            unit_nice = 'TB'
+        
     return bytes_nice, unit_nice
 
 
