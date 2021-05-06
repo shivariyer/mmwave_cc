@@ -74,7 +74,7 @@ class Simulation(object):
         # use iperf instead of our sender and receiver?
         self.iperf = iperf
 
-    def run(self, savedir='output', log=False, skip_seconds=0, verbose=0, disp_plot=False, save_plot=True):
+    def run(self, savedir='output', log=False, skip_seconds=0, verbose=0, disp_plot=False, save_plot=True, suffix=None):
         '''Run the simulation with following runtime options.
         
         savedir: directory where to store outputs
@@ -115,6 +115,9 @@ class Simulation(object):
 
         if self.mm_delay is not None and self.mm_delay > 0:
             saveprefix += '_delay{:02d}'.format(self.mm_delay)
+
+        if suffix is not None:
+            saveprefix += '_' + suffix
         
         savepathprefix = os.path.join(savedir, saveprefix)
         
