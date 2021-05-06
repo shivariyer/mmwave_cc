@@ -11,13 +11,13 @@ from glob import glob
 
 
 def plot_bgtrace(tracename):
+    plt.rc('font', size=16)
+    
     inpdir = os.path.join('traces', 'channels')
     bw = parse_trace_file(os.path.join(inpdir, tracename))
     
-    fig = plt.figure(figsize=(12,6), facecolor='w')
+    fig = plt.figure(figsize=(8,4), facecolor='w')
     ax = fig.add_subplot(111)
-    
-    plt.rc('font', size=16)
     
     bw_scaled = [v/1e6 for v in bw] # convert bits to megabits
     avgbw = round(sum(bw_scaled) * 1.0 / len(bw_scaled), 3)
@@ -33,15 +33,21 @@ def plot_bgtrace(tracename):
     saveprefix = os.path.join(inpdir, tracename + '_Mbps')
     np.savetxt(saveprefix + '.txt', bw_scaled, fmt='%.6f')
     
-    ax.fill_between(np.arange(len(bw)), 0, bw_scaled, color='#F2D19F')
-    plt.ylabel('Available BW (Mbps)')
-    plt.xlabel('Time (s)')
-    plt.title('Average BW = {:.3f} Mbps, max BW = {:.3f} Mbps'.format(avgbw, maxbw))
-    plt.xlim([0,60])
-    # plt.grid(True, which='both')
-    plt.savefig(saveprefix + '.pdf', dpi=1000, bbox_inches='tight')
+    #ax.fill_between(np.arange(len(bw)), 0, bw_scaled, color='#F2D19F')
+    ax.plot(bw_scaled, lw=3, c='r')
+    ax.set_ylabel('Available BW (Mbps)')
+    ax.set_xlabel('Time (s)')
+    ax.set_title('Avg BW = {:.3f} Mbps, max BW = {:.3f} Mbps'.format(avgbw, maxbw))
+    ax.set_xlim([0,60])
+    # ax.grid(True, which='both')
+    fig.suptitle(tracename)
+    fig.subplots_adjust(bottom=0.2, top=0.8, right=0.98)
+    #fig.savefig(saveprefix + '.pdf', dpi=1000, bbox_inches='tight')
+    fig.savefig(saveprefix + '.pdf')
+    #fig.savefig(saveprefix + '.png', dpi=1000, bbox_inches='tight')
+    fig.savefig(saveprefix + '.png')
     plt.show()
-    plt.close()
+    plt.close(fig)
 
 
 def plot_tput_delay(filepath, ms_per_bin=500, skip_seconds=0, title=None, disp=True, save=False):
@@ -137,17 +143,15 @@ def plot_tput_delay_tcpdump(sender_pcap, receiver_pcap, server_ip, mmlogfilepath
     os.system(cmd)
     print('Saved to "{}"'.format(receiver_tput_savepath))
 
-    # next extract throughput at sender
-    sender_tput_savepath = os.path.splitext(sender_pcap)[0] + '_tput.csv'
-    cmd = tput_cmd.format(sender_pcap, server_ip, sender_tput_savepath)
-    print('Extracting throughput at sender:', cmd)
-    os.system(cmd)
-    print('Saved to "{}"'.format(sender_tput_savepath))
-
+    # # next extract throughput at sender
+    # sender_tput_savepath = os.path.splitext(sender_pcap)[0] + '_tput.csv'
+    # cmd = tput_cmd.format(sender_pcap, server_ip, sender_tput_savepath)
+    # print('Extracting throughput at sender:', cmd)
+    # os.system(cmd)
+    # print('Saved to "{}"'.format(sender_tput_savepath))
 
     # next get RTT at sender
     rtt_cmd = 'tshark -r {} -Y "tcp.analysis.ack_rtt && ip.src=={}" -T fields -e frame.time_epoch -e tcp.analysis.ack_rtt -E separator=, > {}'
-
     rtt_savepath = os.path.splitext(sender_pcap)[0] + '_RTT.csv'
     cmd = rtt_cmd.format(sender_pcap, server_ip, rtt_savepath)
     print('Extracting RTT:', cmd)
