@@ -8,6 +8,7 @@ __pycache__
 /results
 /traces/
 /notebooks
+/scripts
 
 # executable files
 sender_receiver/sender
