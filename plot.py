@@ -14,7 +14,7 @@ def plot_bgtrace(tracename):
     plt.rc('font', size=16)
     
     inpdir = os.path.join('traces', 'channels')
-    bw = parse_trace_file(os.path.join(inpdir, tracename))
+    bw = parse_trace_file(os.path.join(inpdir, tracename), pkt_size=1472)
     
     fig = plt.figure(figsize=(8,4), facecolor='w')
     ax = fig.add_subplot(111)

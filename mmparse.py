@@ -1,7 +1,7 @@
 import os
 
 # parsing a trace file
-def parse_trace_file(filename):
+def parse_trace_file(filename, pkt_size=1492):
     f1 = open (filename,"r")
     BW = []
     nextTime = 1000
@@ -9,7 +9,7 @@ def parse_trace_file(filename):
     for line in f1:
         #print line
         if int(line.strip()) > nextTime:
-            BW.append(cnt*1492*8)
+            BW.append(cnt*pkt_size*8)
             cnt = 0
             nextTime+=1000
         else:
