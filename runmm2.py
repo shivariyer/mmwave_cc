@@ -100,7 +100,7 @@ class Simulation(object):
         
         # fixing dest file names
         if self.ttr is not None:
-            saveprefix = '{}_T{}'.format(self.trace, self.ttr)
+            saveprefix = '{}_T{}'.format(os.path.splitext(self.trace)[0], self.ttr)
         elif self.n_blks is not None:
             saveprefix = '{}_N{}'.format(self.trace, self.n_blks)
         else:
@@ -111,7 +111,7 @@ class Simulation(object):
         saveprefix += '_{}KiB'.format(self.blksize)
         
         if self.buf_len is not None:
-            saveprefix += '_Q{}'.format(self.buf_len)
+            saveprefix += '_Q{:.0f}'.format(self.buf_len)
 
         if self.mm_delay is not None and self.mm_delay > 0:
             saveprefix += '_delay{:02d}'.format(self.mm_delay)
