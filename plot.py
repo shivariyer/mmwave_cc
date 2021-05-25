@@ -10,11 +10,11 @@ import pandas as pd
 from glob import glob
 
 
-def plot_bgtrace(tracename):
+def plot_bgtrace(tracename, inpdir):
     plt.rc('font', size=16)
     
-    inpdir = os.path.join('traces', 'channels')
-    bw = parse_trace_file(os.path.join(inpdir, tracename), pkt_size=1472)
+    #inpdir = os.path.join('traces', 'channels')
+    bw = parse_trace_file(os.path.join(inpdir, tracename + '.trace1'), pkt_size=1472)
     
     fig = plt.figure(figsize=(8,4), facecolor='w')
     ax = fig.add_subplot(111)
@@ -133,7 +133,6 @@ def plot_tput_delay(filepath, ms_per_bin=500, skip_seconds=0, title=None, disp=T
 
 def plot_tput_delay_tcpdump(sender_pcap, receiver_pcap, server_ip, mmlogfilepath, skip_seconds=0, title=None, disp=True, save=False):
 
-
     # first extract throughput at receiver
     tput_cmd = 'tshark -r {} -Y "ip.dst=={}" -T fields -e frame.time_epoch -e frame.len -E separator=, > {}'
 
@@ -231,13 +230,13 @@ def plot_tput_delay_tcpdump(sender_pcap, receiver_pcap, server_ip, mmlogfilepath
         else:
             fig.savefig(savepath + '_skip{}.png'.format(skip_seconds))
         #df_delays_full.to_csv(savepath + '_mmdelays.csv', header=True)
-        with open(savepath + '_mmtput.csv', 'w') as fout:
-            fout.write('# duration_ms: {}'.format(data['duration_ms']) + os.linesep)
-            fout.write('# ingress_avg: {:.3f}'.format(data['ingress_avg']) + os.linesep)
-            fout.write('# throughput_avg: {:.3f}'.format(data['throughput_avg']) + os.linesep)
-            fout.write('# capacity_avg: {:.3f}'.format(data['capacity_avg']) + os.linesep)
-            fout.write('# utilization: {:.3f}'.format(data['utilization']) + os.linesep)
-            df_mm.to_csv(fout)
+    with open(savepath + '_mmtput.csv', 'w') as fout:
+        fout.write('# duration_ms: {}'.format(data['duration_ms']) + os.linesep)
+        fout.write('# ingress_avg: {:.3f}'.format(data['ingress_avg']) + os.linesep)
+        fout.write('# throughput_avg: {:.3f}'.format(data['throughput_avg']) + os.linesep)
+        fout.write('# capacity_avg: {:.3f}'.format(data['capacity_avg']) + os.linesep)
+        fout.write('# utilization: {:.3f}'.format(data['utilization']) + os.linesep)
+        df_mm.to_csv(fout)
     
     if disp:
         plt.show()
@@ -256,6 +255,7 @@ if __name__ == '__main__':
                                        dest='plot_type')
     parser_a = subparsers.add_parser('bgtrace', aliases=['trace'])
     parser_a.add_argument('names', nargs='+', help='Name of a bg trace in traces/channels/')
+    parser_a.add_argument('--dir', default=os.path.join('traces', 'channels'), help='Directory where to find the traces')
 
     parser_b = subparsers.add_parser('tput_delay', aliases=['tput', 'delay'])
     parser_b.add_argument('mmfilepaths', nargs='+', help='Name of a mm log file (*_downlink.csv or *_uplink.csv) or directory')
@@ -272,7 +272,7 @@ if __name__ == '__main__':
 
     elif args.plot_type == 'bgtrace':
         for name in args.names:
-            plot_bgtrace(name)
+            plot_bgtrace(name, args.dir)
 
     elif args.plot_type == 'tput_delay':
         if not args.dir:
