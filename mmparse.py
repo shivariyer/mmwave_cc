@@ -40,7 +40,7 @@ def parse_mm_queue_delays(filepath):
     return delays, delaytimes
 
 
-def parse_mm_throughput(filepath, ms_per_bin=500, verbose=True):
+def parse_mm_throughput(filepath, ms_per_bin=1000, verbose=True):
     
     from tqdm import tqdm
     from numpy import asarray
