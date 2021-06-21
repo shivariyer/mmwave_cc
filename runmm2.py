@@ -213,13 +213,31 @@ class Simulation(object):
         #receiver_process_retcode = receiver_process.wait()
         #if verbose >= 2:
         #    print('Receiver process returned', receiver_process_retcode)
+
+        # first extract throughput at receiver
+        tput_cmd = 'tshark -r {0}_receiver.pcap -Y "ip.dst=={1}" -T fields -e frame.time_epoch -e frame.len -E separator=, > {0}_receiver_tput.csv'.format(savepathprefix, server_ip)
+        print('Extracting throughput at receiver:', tput_cmd)
+        os.system(tput_cmd)
+        print('Saved to "{}_receiver_tput.csv"'.format(savepathprefix))
+        os.unlink('{}_receiver.pcap'.format(savepathprefix))
+
+        # # next extract throughput at sender
+        # sender_tput_savepath = os.path.splitext(sender_pcap)[0] + '_tput.csv'
+        # cmd = tput_cmd.format(sender_pcap, server_ip, sender_tput_savepath)
+        # print('Extracting throughput at sender:', cmd)
+        # os.system(cmd)
+        # print('Saved to "{}"'.format(sender_tput_savepath))
+        
+        # next get RTT at sender
+        rtt_cmd = 'tshark -r {0}_sender.pcap -Y "tcp.analysis.ack_rtt && ip.src=={1}" -T fields -e frame.time_epoch -e tcp.analysis.ack_rtt -E separator=, > {0}_sender_RTT.csv'.format(savepathprefix, server_ip)
+        print('Extracting RTT:', rtt_cmd)
+        os.system(rtt_cmd)
+        print('Saved to "{}_sender_RTT.csv"'.format(savepathprefix))
+        os.unlink('{}_sender.pcap'.format(savepathprefix))
             
         print('Plotting performance ...')
         #plot_tput_delay(mmlogfpath, skip_seconds=skip_seconds, title=os.path.basename(savepathprefix), disp=disp_plot, save=save_plot)
-        plot_tput_delay_tcpdump('{}_sender.pcap'.format(savepathprefix), '{}_receiver.pcap'.format(savepathprefix), server_ip, mmlogfpath, skip_seconds=skip_seconds, title=os.path.basename(savepathprefix), disp=disp_plot, save=save_plot)
-
-        os.unlink('{}_sender.pcap'.format(savepathprefix))
-        os.unlink('{}_receiver.pcap'.format(savepathprefix))
+        plot_tput_delay_tcpdump(mmlogfpath, skip_seconds=skip_seconds, title=os.path.basename(savepathprefix), disp=disp_plot, save=save_plot)
 
         return
 
