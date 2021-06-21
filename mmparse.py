@@ -132,6 +132,11 @@ def parse_mm_throughput(filepath, ms_per_bin=1000, verbose=True):
 
 
 def parse_mm_log_simple(mmfilepath):
+    from pandas import DataFrame, Index
+    from tqdm import tqdm
+    import numpy as np
+    import re
+
     # for every millisecond, log the ingress, egress, dropped,
     # capacity queue size and the queue occupancy
     mm_times = []
@@ -145,7 +150,7 @@ def parse_mm_log_simple(mmfilepath):
     mm_init_timestamp = 0
     q_type = None
     qsize_unit = None
-    qsize_limit = None
+    qsize_limit = np.inf
 
     # computed every millisecond ('ms')
     tick_ms_last = 0
@@ -260,17 +265,20 @@ def parse_mm_log_simple(mmfilepath):
     # "seconds"
     res[:,0] = (res[:,0] + mm_init_timestamp) / 1000.0
 
+    column_names = ['unix_time_s', 'ingress_bytes', 'egress_bytes', 'dropped_bytes',  'capacity_bytes', 'queue_bytes', 'queue_occupancy']
+    res_df = DataFrame(res[:,1:], index=Index(res[:,0], name=column_names[0]), columns=column_names[1:-1])
+
     # write parsed output into file
     with open(mmfilepath[:-4] + '_parsed.txt', 'w') as fout:
         hdr_fmt = '{:>17s},{:>14s},{:>13s},{:>14s},{:>15s},{:>11s},{:>16s}' + os.linesep
         row_fmt = '{:17.6f},{:>14.0f},{:>13.0f},{:>14.0f},{:15.0f},{:11.0f},{:16.5f}' + os.linesep
 
         fout.write('# queue: {}, length: {} {}'.format(q_type, qsize_limit, qsize_unit) + os.linesep)
-        fout.write(hdr_fmt.format('unix_time', 'ingress_bytes', 'egress_bytes', 'dropped_bytes',  'capacity_bytes', 'queue_size', 'queue_occupancy'))
+        fout.write(hdr_fmt.format(*column_names))
         for row in tqdm(res, desc='Printing out the table'):
             fout.write(row_fmt.format(row[0], row[1], row[2], row[3], row[4], row[5], row[5]/qsize_limit))
-
-    return res, (q_type, qsize_unit, qsize_limit)
+    
+    return res_df, (q_type, qsize_unit, qsize_limit)
 
 
 if __name__ == '__main__':
