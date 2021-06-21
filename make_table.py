@@ -14,11 +14,12 @@ def generate_results_table(results_dir, key, savepath=None, append=False):
     table = [] # key, tracename, duration, blksize, qsize, mmdelay, avg cap, avg tput, avg util, delay statistics
     for fpath in tqdm(flist, desc='Parsing all output files in \'{}\''.format(results_dir)):
         fname = os.path.basename(fpath)
-        if '_Q' in fname:
-            trace, duration, blksize, qsize, mmdelay, _ = fname.split('_', 5)
+        trace, rest = fname.split('_T')
+        if '_Q' in rest:
+            duration, blksize, qsize, mmdelay, _ = rest.split('_', 4)
             qsize = int(float(qsize[1:]))
         else:
-            trace, duration, blksize, mmdelay, _ = fname.split('_', 4)
+            duration, blksize, mmdelay, _ = rest.split('_', 3)
             qsize = None
         duration = int(duration[1:])
         mmdelay = int(mmdelay[5:])
@@ -29,9 +30,10 @@ def generate_results_table(results_dir, key, savepath=None, append=False):
         df_rtt = df_rtt.groupby('seconds').mean()
         df_rtt.loc[:, 'rtt'] = df_rtt.rtt.values * 1000 # convert RTT to milliseconds 
         
-        df_tput = pd.read_csv(fpath.replace('sender_RTT', 'uplink_mmtput'), skiprows=5, index_col=[0])
+        df_tput = pd.read_csv(fpath.replace('sender_RTT', 'uplink_mmtput'), index_col=[0])
+        df_tput = (df_tput * 8 / 1e6)
 
-        table.append((key, trace, duration, blksize, qsize, mmdelay, df_tput.capacity.mean(), df_tput.throughput.mean(), (df_tput.throughput*100 / df_tput.capacity).mean(), df_rtt.rtt.min(), df_rtt.rtt.max(), df_rtt.rtt.mean(), df_rtt.rtt.std(), df_rtt.rtt.quantile(0.25), df_rtt.rtt.quantile(0.5), df_rtt.rtt.quantile(0.75)))
+        table.append((key, trace, duration, blksize, qsize, mmdelay, df_tput.capacity_bytes.mean(), df_tput.egress_bytes.mean(), (df_tput.egress_bytes*100 / df_tput.capacity_bytes).mean(), df_rtt.rtt.min(), df_rtt.rtt.max(), df_rtt.rtt.mean(), df_rtt.rtt.std(), df_rtt.rtt.quantile(0.25), df_rtt.rtt.quantile(0.5), df_rtt.rtt.quantile(0.75)))
 
     df = pd.DataFrame(table, columns=['key', 'trace', 'duration', 'blksize', 'qsize', 'mmdelay', 'capacity', 'throughput', 'utilization', 'delay_min', 'delay_max', 'delay_avg', 'delay_std', 'delay_25', 'delay_50', 'delay_75'])
     df = df.set_index(['key', 'trace', 'duration', 'blksize', 'qsize', 'mmdelay'])
