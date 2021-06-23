@@ -6,19 +6,24 @@ __pycache__
 # directories
 /output
 /results
-/traces/
+/traces
 /notebooks
 /scripts
+/trace_collection/traces
 
 # executable files
 sender_receiver/sender
 sender_receiver/receiver
+trace_collection/udp_sender
+trace_collection/udp_receiver
 
 # output or text files
 *.pdf
 *.txt
 *.log
 *.trace 
+*.csv
+*.xlsx
 
 # compressed files
 *.tar.gz
